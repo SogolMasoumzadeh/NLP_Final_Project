@@ -6,11 +6,8 @@ requirements =[
     "sklearn",
     "tqdm",
     "sentence_transformers",
-    "torch",
     "pandas",
-    "keras",
     "tensorflow"
-
 ]
 
 with open ("README.md", "r") as f:
