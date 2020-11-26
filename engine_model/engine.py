@@ -94,6 +94,7 @@ class classifer():
 
     def build_cnn(self, embedding_matrix):
         sequence_input = Input(shape=(MAXLEN,), dtype='int32')
+        # TODO: try with default keras embedding (should be worse performance)
         embedding_layer = Embedding(len(self.__keras_tokenizer.word_index) + 1,
                                     DIMENSION,
                                     weights=[embedding_matrix],
