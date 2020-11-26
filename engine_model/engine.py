@@ -130,6 +130,3 @@ class classifer():
         model.fit(np.asarray(self.__tokenized_train), np.asarray(self.__train_label))
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done")
-
-c = classifer()
-c.run()
