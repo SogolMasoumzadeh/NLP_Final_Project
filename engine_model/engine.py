@@ -10,10 +10,11 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import numpy as np
+import os
 
-JOKES_PATH = "../../jokes_processed_20201110.csv"
-YAHOO_PATH = "../../df_yahoo_news_20201123.csv"
-GLOVE_PATH = "../../glove/glove.6B.50d.txt"
+JOKES_PATH = "jokes_processed_20201110.csv"
+YAHOO_PATH = "df_yahoo_news_20201123.csv"
+GLOVE_PATH = "glove/glove.6B.50d.txt"
 MAXLEN = 100
 DIMENSION = 50
 
@@ -33,7 +34,16 @@ class classifer():
         self.__tokenized_train = []
         self.__tokenized_test = []
         self.__tokenized_dev = []
+
         self.__glove_embedding = None
+        self.__jokes_path = None
+        self.__non_jokes_path = None
+        self.__glove_path = None
+
+    def __file_path_creator(self, file_name: str):
+        """Create the path to the jokes and non jokes file and the glove embeddings..."""
+        return os.path.abspath(file_name)
+
 
     def __data_loader(self, file_path: str, joke_flag: bool):
         """Data loader from the .csv files"""
@@ -92,7 +102,7 @@ class classifer():
                     glove_embedding[word_id] = np.array(vector, dtype=np.float32)
         return glove_embedding
 
-    def build_cnn(self, embedding_matrix):
+    def __build_cnn(self, embedding_matrix):
         sequence_input = Input(shape=(MAXLEN,), dtype='int32')
         # TODO: try with default keras embedding (should be worse performance)
         embedding_layer = Embedding(len(self.__keras_tokenizer.word_index) + 1,
@@ -115,19 +125,25 @@ class classifer():
 
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
-        jokes, jokes_labels = self.__data_loader(JOKES_PATH, True)
-        non_jokes, non_jokes_labels = self.__data_loader(YAHOO_PATH, False)
+        self.__jokes_path = self.__file_path_creator(JOKES_PATH)
+        self.__non_jokes_path = self.__file_path_creator(YAHOO_PATH)
+
+        jokes, jokes_labels = self.__data_loader(self.__jokes_path, True)
+        non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
         self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
+
         print(f"{str(datetime.now())}: Splitting data ...")
         self.__train_test_divider(self.__corpus, self.__corpus_labels)
         print(f"{str(datetime.now())}: Tokenizing data ...")
         self.__keras_tokenize()
         self.__padder()
+
         print(f"{str(datetime.now())}: Creating GloVe embedding ...")
-        glove_embedding = self.__glove_embeddings_creator(GLOVE_PATH, DIMENSION, self.__keras_tokenizer.word_index)
+        self.__glove_path = self.__file_path_creator(GLOVE_PATH)
+        glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION, self.__keras_tokenizer.word_index)
         np.save('glove_embedding', glove_embedding)
         print(f"{str(datetime.now())}: Building / training CNN model ...")
-        model = self.build_cnn(glove_embedding)
+        model = self.__build_cnn(glove_embedding)
         model.fit(np.asarray(self.__tokenized_train), np.asarray(self.__train_label))
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done")
