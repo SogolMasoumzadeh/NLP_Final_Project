@@ -17,6 +17,9 @@ YAHOO_PATH = "df_yahoo_news_20201123.csv"
 GLOVE_PATH = "glove/glove.6B.50d.txt"
 MAXLEN = 100
 DIMENSION = 50
+TRAIN_EPOCH = 1
+TRAIN_BATCHSIZE = 10
+TEST_BATCHSIZE = 10
 
 
 class classifer():
@@ -39,6 +42,9 @@ class classifer():
         self.__jokes_path = None
         self.__non_jokes_path = None
         self.__glove_path = None
+        self.__cnn_history = None
+        self.__cnn_results = None
+        self.__cnn_predictions = None
 
     def __file_path_creator(self, file_name: str):
         """Create the path to the jokes and non jokes file and the glove embeddings..."""
@@ -140,10 +146,23 @@ class classifer():
 
         print(f"{str(datetime.now())}: Creating GloVe embedding ...")
         self.__glove_path = self.__file_path_creator(GLOVE_PATH)
-        glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION, self.__keras_tokenizer.word_index)
+        glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
+                                                          self.__keras_tokenizer.word_index)
         np.save('glove_embedding', glove_embedding)
         print(f"{str(datetime.now())}: Building / training CNN model ...")
         model = self.__build_cnn(glove_embedding)
-        model.fit(np.asarray(self.__tokenized_train), np.asarray(self.__train_label))
+        self.__cnn_history = model.fit(np.asarray(self.__tokenized_train), np.asarray(self.__train_label),
+                                       epochs=TRAIN_EPOCH,
+                                       validation_data=(np.asarray(self.__tokenized_dev), np.array(self.__dev_label)),
+                                       batch_size=TRAIN_BATCHSIZE)
+        print(f"{str(datetime.now())}: Predicting the model on the test data ...")
+        self.__cnn_results = model.evaluate(np.asarray(self.__tokenized_test), np.asarray(self.__test_label),
+                                                       batch_size=TEST_BATCHSIZE, verbose=1)
+        self.__cnn_predictions = model.predict(np.asarray(self.__tokenized_test), batch_size=TEST_BATCHSIZE, verbose=1)
+        print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
+
+
+
+
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done")
