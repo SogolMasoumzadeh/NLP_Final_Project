@@ -8,7 +8,8 @@ requirements =[
     "sentence_transformers",
     "pandas",
     "tensorflow",
-    "matplotlib"
+    "matplotlib",
+    "seaborn",
 ]
 
 with open ("README.md", "r") as f:

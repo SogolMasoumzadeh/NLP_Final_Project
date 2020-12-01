@@ -10,26 +10,33 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import numpy as np
+from numpy import ndarray
 import os
 import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.metrics import confusion_matrix
+from seaborn import heatmap
 
 JOKES_PATH = "jokes_processed_20201110.csv"
 YAHOO_PATH = "df_yahoo_news_20201123.csv"
 GLOVE_PATH = "glove/glove.6B.50d.txt"
 MAXLEN = 100
 DIMENSION = 50
-TRAIN_EPOCH = 50
-TRAIN_BATCHSIZE = 10
-TEST_BATCHSIZE = 10
+TRAIN_EPOCH = 1
+TRAIN_BATCHSIZE = 100
+TEST_BATCHSIZE = 100
+THRESHOLD = 0.5
 XLABEL = "Epoch"
 ACCURACYPLOT="Acurracy_Plot"
 LOSSPLOT="Loss_Plot"
+CON_MAT = "Confusion_Matrix"
 
 
 class classifer():
 
     def __init__(self):
         self.__keras_tokenizer = Tokenizer(num_words=5000)
+        self.__confusion_matrix = confusion_matrix
         self.__corpus = []
         self.__corpus_labels = []
         self.__train_data = []
@@ -157,6 +164,17 @@ class classifer():
         # plt.show()
         plt.savefig(self.__base_path + LOSSPLOT)
 
+    def ___confusion_matrix_builder(self, grandtruth: List[int], predictions: List[int]):
+        """Builds the confusion matrix for the predictions of the model"""
+        cm = self.__confusion_matrix(grandtruth, predictions)
+        plot_cm = pd.DataFrame(cm, index=[i for i in ["Humor", "Regular_text"]],
+                               columns=[i for i in ["Humor", "Regular_text"]])
+        plt.figure(figsize=(10, 7))
+        plt.title(f"Confusion Matrix for the model is created ...")
+        heatmap(plot_cm, annot=True)
+        # plt.show()
+        plt.savefig(self.__base_path + CON_MAT)
+
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES_PATH)
@@ -188,8 +206,14 @@ class classifer():
         print(f"{str(datetime.now())}: Predicting the model on the test data ...")
         self.__cnn_results = model.evaluate(np.asarray(self.__tokenized_test), np.asarray(self.__test_label),
                                                        batch_size=TEST_BATCHSIZE, verbose=1)
-        self.__cnn_predictions = model.predict(np.asarray(self.__tokenized_test), batch_size=TEST_BATCHSIZE, verbose=1)
+        predictions = model.predict(np.asarray(self.__tokenized_test), batch_size=TEST_BATCHSIZE, verbose=1)
+        predictions = np.where(predictions > THRESHOLD, 1, 0)
+        predictions = ndarray.tolist(predictions)
+        self.__cnn_predictions = [array[0] for array in predictions]
+        print(f"These are the first five elements of the predictions {self.__cnn_predictions[:5]}")
+        self.___confusion_matrix_builder(self.__test_label, self.__cnn_predictions)
         print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
+
 
 
 
