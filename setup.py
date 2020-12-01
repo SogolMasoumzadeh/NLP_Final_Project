@@ -7,7 +7,8 @@ requirements =[
     "tqdm",
     "sentence_transformers",
     "pandas",
-    "tensorflow"
+    "tensorflow",
+    "matplotlib"
 ]
 
 with open ("README.md", "r") as f:

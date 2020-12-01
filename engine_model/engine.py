@@ -11,6 +11,7 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 JOKES_PATH = "jokes_processed_20201110.csv"
 YAHOO_PATH = "df_yahoo_news_20201123.csv"
@@ -18,8 +19,11 @@ GLOVE_PATH = "glove/glove.6B.50d.txt"
 MAXLEN = 100
 DIMENSION = 50
 TRAIN_EPOCH = 1
-TRAIN_BATCHSIZE = 10
-TEST_BATCHSIZE = 10
+TRAIN_BATCHSIZE = 100
+TEST_BATCHSIZE = 100
+XLABEL = "Epoch"
+ACCURACYPLOT="Acurracy_Plot"
+LOSSPLOT="Loss_Plot"
 
 
 class classifer():
@@ -41,6 +45,7 @@ class classifer():
         self.__glove_embedding = None
         self.__jokes_path = None
         self.__non_jokes_path = None
+        self.__base_path = None
         self.__glove_path = None
         self.__cnn_history = None
         self.__cnn_results = None
@@ -129,10 +134,34 @@ class classifer():
 
         return model
 
+    def __convergance_plot_builder(self, history):
+        """Create the convergance plots for th loss and accuracy of the model"""
+        labels = [key for key in history.history.keys()]
+        print(f"Creating the accuracy plot for the model's training history")
+        plt.plot(history.history[labels[0]])
+        plt.plot(history.history[labels[1]])
+        plt.title("Model Accuracy")
+        plt.ylabel("Accuracy")
+        plt.xlabel(XLABEL)
+        plt.legend(["training_set", "validation_set"], loc="upper left")
+        # plt.show()
+        plt.savefig(self.__base_path + ACCURACYPLOT)
+
+        print(f"Creating the loss plot for the model's training history")
+        plt.plot(history.history[labels[2]])
+        plt.plot(history.history[labels[3]])
+        plt.title("Model Loss")
+        plt.ylabel("Loss")
+        plt.xlabel(XLABEL)
+        plt.legend(["training_set", "validation_set"], loc="upper left")
+        # plt.show()
+        plt.savefig(self.__base_path + LOSSPLOT)
+
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES_PATH)
         self.__non_jokes_path = self.__file_path_creator(YAHOO_PATH)
+        self.__base_path = self.__jokes_path[:-len(JOKES_PATH)]
 
         jokes, jokes_labels = self.__data_loader(self.__jokes_path, True)
         non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
@@ -155,6 +184,7 @@ class classifer():
                                        epochs=TRAIN_EPOCH,
                                        validation_data=(np.asarray(self.__tokenized_dev), np.array(self.__dev_label)),
                                        batch_size=TRAIN_BATCHSIZE)
+        self.__convergance_plot_builder(self.__cnn_history)
         print(f"{str(datetime.now())}: Predicting the model on the test data ...")
         self.__cnn_results = model.evaluate(np.asarray(self.__tokenized_test), np.asarray(self.__test_label),
                                                        batch_size=TEST_BATCHSIZE, verbose=1)
