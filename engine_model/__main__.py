@@ -1,7 +1,7 @@
-from .engine import classifer
+from .engine import CNNClassifier, LinearClassifier
 
 def main():
-    c = classifer()
+    c = LinearClassifier()
     c.run()
 
 main()

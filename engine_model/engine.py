@@ -1,8 +1,11 @@
 from datetime import datetime
 from typing import List
 
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
+from sklearn.naive_bayes import BernoulliNB
 from sklearn.svm import LinearSVC
 from tensorflow.keras import layers
 from tensorflow.python.keras import Input
@@ -17,7 +20,7 @@ import os
 import matplotlib.pyplot as plt
 
 JOKES_PATH = "jokes_processed_20201110.csv"
-YAHOO_PATH = "df_yahoo_news_20201123.csv"
+NO_JOKES_PATH = "no_joke_20201129.csv"
 GLOVE_PATH = "glove/glove.6B.50d.txt"
 MAXLEN = 100
 DIMENSION = 50
@@ -29,7 +32,7 @@ ACCURACYPLOT="Acurracy_Plot"
 LOSSPLOT="Loss_Plot"
 
 
-class CNNClassifier():
+class CNNClassifier:
 
     def __init__(self):
         self.__keras_tokenizer = Tokenizer(num_words=5000)
@@ -165,7 +168,7 @@ class CNNClassifier():
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES_PATH)
-        self.__non_jokes_path = self.__file_path_creator(YAHOO_PATH)
+        self.__non_jokes_path = self.__file_path_creator(NO_JOKES_PATH)
         self.__base_path = self.__jokes_path[:-len(JOKES_PATH)]
 
         jokes, jokes_labels = self.__data_loader(self.__jokes_path, True)
@@ -246,7 +249,7 @@ class LinearClassifier:
         self.__corpus_labels = non_joke_labels
 
     def __vectorize(self, data_set):
-        vectorizer = TfidfVectorizer()
+        vectorizer = CountVectorizer()
         return vectorizer.fit_transform(data_set)
 
     def __train_test_divider(self, X, y):
@@ -258,13 +261,13 @@ class LinearClassifier:
             train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
 
     def __train_classifier(self):
-        self.__classifier = LinearSVC()
+        self.__classifier = CalibratedClassifierCV(LinearSVC())
         self.__classifier.fit(self.__train_data, self.__train_label)
 
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES_PATH)
-        self.__non_jokes_path = self.__file_path_creator(YAHOO_PATH)
+        self.__non_jokes_path = self.__file_path_creator(NO_JOKES_PATH)
 
         jokes, jokes_labels = self.__data_loader(self.__jokes_path, True)
         non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
@@ -274,10 +277,19 @@ class LinearClassifier:
         X = self.__vectorize(self.__corpus)
         self.__train_test_divider(X, self.__corpus_labels)
 
+        print(f"{str(datetime.now())}: Training classifier ...")
         self.__train_classifier()
 
         y_predict = self.__classifier.predict(self.__dev_data)
         print(confusion_matrix(self.__dev_label, y_predict))
 
-c = CNNClassifier()
-c.run()
+        # Probabilities
+        y_confidence = self.__classifier.predict_proba(self.__dev_data)
+        unconfident_results = []
+        i = 0
+        for row in y_confidence:
+            if 0.35 < row[0] < 0.65:
+                unconfident_results.append((row, i))
+            i += 1
+        print(y_confidence[:5, :])
+        print(len(unconfident_results))
