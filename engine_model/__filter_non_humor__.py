@@ -1,5 +1,7 @@
 from .engine import LinearClassifier
-
+import matplotlib.pyplot as plt
+import seaborn as sns
+	
 def filter_non_humor():
 	filter_non_humor_amaz_yahoo()
 	filter_non_humor_comm_reddit()
@@ -39,7 +41,7 @@ def filter_non_humor_amaz_yahoo():
 	NO_JOKES_PATH = "amazon_yahoo.csv"
 	
 	c = LinearClassifier()
-    c.run()
+	c.run()
 	
 	df_nojokes['text'] = df_nojokes['text'].apply(str)
 	pred_jokes, prob_jokes = c.classifier_prediction(df_nojokes['text']) 
@@ -48,9 +50,6 @@ def filter_non_humor_amaz_yahoo():
 	df_nojokes = df_nojokes[['text','joke_pred', 'prob']]
 	df_nojokes = df_nojokes[df_nojokes['joke_pred']==1]
 	print(df_nojokes.shape)
-
-	import matplotlib.pyplot as plt
-	import seaborn as sns
 
 	sns.set(rc={'figure.figsize':(8.7,5.6)})
 	plt.hist(df_nojokes['prob'], bins=20)
@@ -98,7 +97,7 @@ def filter_non_humor_comm_reddit():
 	NO_JOKES_PATH = "reddit_comments.csv"
 	
 	c = LinearClassifier()
-    c.run()
+	c.run()
 	
 	pred_jokes, prob_jokes = c.classifier_prediction(stack['text']) 
 	stack['prob'] = pd.DataFrame(prob_jokes)
