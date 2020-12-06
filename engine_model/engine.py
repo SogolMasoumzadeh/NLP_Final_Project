@@ -3,6 +3,9 @@ from typing import List
 
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.metrics import classification_report
+from sklearn import metrics
+from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 from sklearn.naive_bayes import BernoulliNB
@@ -213,10 +216,12 @@ class LinearClassifier:
         self.__test_label = []
         self.__dev_data = []
         self.__dev_label = []
-
+        
         self.__jokes_path = None
         self.__non_jokes_path = None
         self.__classifier = None
+        self.__vectorizer = None
+        self.__TfidfTransformer = None
 
     def __file_path_creator(self, file_name: str):
         """Create the path to the jokes and non jokes file and the glove embeddings..."""
@@ -248,21 +253,37 @@ class LinearClassifier:
         self.__corpus = non_joke_list
         self.__corpus_labels = non_joke_labels
 
-    def __vectorize(self, data_set):
-        vectorizer = CountVectorizer()
-        return vectorizer.fit_transform(data_set)
+    def __train_vectorizer(self, data_set):
+        self.__vectorizer = CountVectorizer()
+        self.__vectorizer.fit_transform(data_set)
+    
+    def __train_TfidfTransformer(self, data_set):
+        self.__TfidfTransformer = TfidfTransformer(use_idf=True)
+        self.__TfidfTransformer.fit_transform(data_set)
 
+    def classifier_prediction(self, X):
+        """predict label"""
+        vect_tfidf = self.__TfidfTransformer.transform( self.__vectorizer.transform(X) )
+        return self.__classifier.predict( vect_tfidf ) , self.__classifier.predict_proba(vect_tfidf)[:,1]
+        
     def __train_test_divider(self, X, y):
         """Splitting the data between train and test"""
         self.__train_data, self.__test_data, self.__train_label, self.__test_label = \
             train_test_split(X, y, test_size=0.1, random_state=1000)
 
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
-            train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
+            train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1400)
 
     def __train_classifier(self):
-        self.__classifier = CalibratedClassifierCV(LinearSVC())
+        #weights = {0:1.0, 1:100.0}
+        #class_weight='balanced'
+        
+        #self.__classifier = LinearSVC(class_weight='balanced', penalty='l2', loss='squared_hinge', dual=True) 
+        self.__classifier = CalibratedClassifierCV(LinearSVC(class_weight='balanced', penalty='l2', loss='squared_hinge', dual=True), method='isotonic' )
         self.__classifier.fit(self.__train_data, self.__train_label)
+
+
+        
 
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
@@ -274,7 +295,10 @@ class LinearClassifier:
         self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
 
         print(f"{str(datetime.now())}: Splitting data ...")
-        X = self.__vectorize(self.__corpus)
+        self.__train_vectorizer(self.__corpus)  
+        X = self.__vectorizer.transform(self.__corpus)
+        self.__train_TfidfTransformer(X)
+        X = self.__TfidfTransformer.transform(X)
         self.__train_test_divider(X, self.__corpus_labels)
 
         print(f"{str(datetime.now())}: Training classifier ...")
@@ -282,6 +306,10 @@ class LinearClassifier:
 
         y_predict = self.__classifier.predict(self.__dev_data)
         print(confusion_matrix(self.__dev_label, y_predict))
+        
+        accuracy_score_test = metrics.accuracy_score(self.__dev_label, y_predict)
+        print('Test accuracy : ' + str('{:04.2f}'.format(accuracy_score_test*100))+' %')
+        print('Report on Test_set \n', classification_report(y_predict, self.__dev_label))  
 
         # Probabilities
         y_confidence = self.__classifier.predict_proba(self.__dev_data)
