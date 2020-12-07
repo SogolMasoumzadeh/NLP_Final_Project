@@ -1,4 +1,8 @@
 from datetime import datetime
+
+from matplotlib.backends.qt_editor._formlayout import fedit
+from nltk import word_tokenize
+from nltk.tag import pos_tag
 from typing import List
 
 from sklearn.calibration import CalibratedClassifierCV
@@ -12,7 +16,7 @@ from sklearn.naive_bayes import BernoulliNB
 from sklearn.svm import LinearSVC
 from tensorflow.keras import layers
 from tensorflow.python.keras import Input
-from tensorflow.python.keras.layers import Embedding
+from tensorflow.python.keras.layers import Embedding, concatenate
 from tensorflow.python.keras.models import Sequential, Model
 import csv
 from sklearn.model_selection import train_test_split
@@ -27,12 +31,14 @@ NO_JOKES_PATH = "no_joke_20201129.csv"
 GLOVE_PATH = "glove/glove.6B.50d.txt"
 MAXLEN = 100
 DIMENSION = 50
-TRAIN_EPOCH = 50
+TRAIN_EPOCH = 1
 TRAIN_BATCHSIZE = 10
 TEST_BATCHSIZE = 10
 XLABEL = "Epoch"
 ACCURACYPLOT="Acurracy_Plot"
 LOSSPLOT="Loss_Plot"
+FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
+SECOND_PERSON_WORDS = ['you', 'your', 'yours']
 
 
 class CNNClassifier:
@@ -50,6 +56,9 @@ class CNNClassifier:
         self.__tokenized_train = []
         self.__tokenized_test = []
         self.__tokenized_dev = []
+        self.__train_features = None
+        self.__dev_features = None
+        self.__test_features = None
 
         self.__glove_embedding = None
         self.__jokes_path = None
@@ -112,6 +121,27 @@ class CNNClassifier:
         self.__tokenized_dev = pad_sequences(self.__tokenized_dev, padding="post", maxlen=MAXLEN)
         self.__tokenized_test = pad_sequences(self.__tokenized_test, padding="post", maxlen=MAXLEN)
 
+    def __create_feature_arrays(self):
+        self.__train_features = self.__create_feature_array(self.__train_data)
+        self.__dev_features = self.__create_feature_array(self.__dev_data)
+        self.__test_features = self.__create_feature_array(self.__test_data)
+
+    def __create_feature_array(self, data):
+        features = np.empty(shape=(len(data), 2))
+        i = 0
+        for sentence in data:
+            sentence_lower = sentence.lower()
+            words = word_tokenize(sentence_lower)
+            sentence_length = len(sentence_lower)
+            features[i, 0] = len([w for w in words if w in FIRST_PERSON_WORDS]) / sentence_length
+            features[i, 1] = len([w for w in words if w in SECOND_PERSON_WORDS]) / sentence_length
+            # Proper nouns
+            # pos_tags = pos_tag(word_tokenize(sentence))
+            # proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
+            # features[i, 2] = len(proper_nouns) / sentence_length
+            i += 1
+        return features
+
     def __glove_embeddings_creator(self, glove_file_path: str, dimension: int, keras_output):
         """Creating the embeddings for the input data (tokenized) based ont he GloVe method"""
         glove_embedding = np.zeros((len(keras_output) + 1, dimension))
@@ -125,7 +155,9 @@ class CNNClassifier:
 
     def __build_cnn(self, embedding_matrix):
         """ Build the CNN model """
-        sequence_input = Input(shape=(MAXLEN,), dtype='int32')
+        sequence_input = Input(shape=(MAXLEN,), dtype='int32', name='Sequence')
+        features = Input(shape=(2,), name='Features')
+
         # TODO: try with default keras embedding (should be worse performance)
         embedding_layer = Embedding(len(self.__keras_tokenizer.word_index) + 1,
                                     DIMENSION,
@@ -135,10 +167,12 @@ class CNNClassifier:
         embedded_sequences = embedding_layer(sequence_input)
         x = layers.Conv1D(128, 5, activation='relu')(embedded_sequences)
         x = layers.GlobalMaxPooling1D()(x)
-        x = layers.Dense(10, activation='relu')(x)
-        x = layers.Dense(1, activation='sigmoid')(x)
+        merged = concatenate([x, features])
 
-        model = Model(sequence_input, x)
+        merged = layers.Dense(10, activation='relu')(merged)
+        merged = layers.Dense(1, activation='sigmoid')(merged)
+
+        model = Model(inputs=[sequence_input, features], outputs=merged)
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy'])
@@ -180,6 +214,8 @@ class CNNClassifier:
 
         print(f"{str(datetime.now())}: Splitting data ...")
         self.__train_test_divider(self.__corpus, self.__corpus_labels)
+        print(f"{str(datetime.now())}: Creating feature arrays ...")
+        self.__create_feature_arrays()
         print(f"{str(datetime.now())}: Tokenizing data ...")
         self.__keras_tokenize()
         self.__padder()
@@ -191,15 +227,15 @@ class CNNClassifier:
         np.save('glove_embedding', glove_embedding)
         print(f"{str(datetime.now())}: Building / training CNN model ...")
         model = self.__build_cnn(glove_embedding)
-        self.__cnn_history = model.fit(np.asarray(self.__tokenized_train), np.asarray(self.__train_label),
+        self.__cnn_history = model.fit([np.asarray(self.__tokenized_train), np.asarray(self.__train_features)], np.asarray(self.__train_label),
                                        epochs=TRAIN_EPOCH,
                                        validation_data=(np.asarray(self.__tokenized_dev), np.array(self.__dev_label)),
                                        batch_size=TRAIN_BATCHSIZE)
         self.__convergance_plot_builder(self.__cnn_history)
         print(f"{str(datetime.now())}: Predicting the model on the test data ...")
-        self.__cnn_results = model.evaluate(np.asarray(self.__tokenized_test), np.asarray(self.__test_label),
+        self.__cnn_results = model.evaluate([np.asarray(self.__tokenized_test), np.asarray(self.__test_features)], np.asarray(self.__test_label),
                                                        batch_size=TEST_BATCHSIZE, verbose=1)
-        self.__cnn_predictions = model.predict(np.asarray(self.__tokenized_test), batch_size=TEST_BATCHSIZE, verbose=1)
+        self.__cnn_predictions = model.predict([np.asarray(self.__tokenized_test), np.asarray(self.__test_features)], batch_size=TEST_BATCHSIZE, verbose=1)
         print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
 
         model.save('glove_cnn')
