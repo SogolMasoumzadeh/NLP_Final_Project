@@ -262,7 +262,7 @@ class CNNClassifier():
                                                batch_size=TEST_BATCHSIZE, verbose=1)
         print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
 
-        self.__cnn_predictions = model.predict(np.asarray(self.__tokenized_dev), batch_size=TEST_BATCHSIZE, verbose=1)
+        self.__cnn_predictions = model.predict([self.__tokenized_dev, self.__dev_features], batch_size=TEST_BATCHSIZE, verbose=1)
         #print(self.__cnn_predictions)
         accuracy_score_dev = metrics.accuracy_score(self.__dev_label, self.__cnn_predictions.round())
         print('Dev accuracy : ' + str('{:04.2f}'.format(accuracy_score_dev))+' %')
