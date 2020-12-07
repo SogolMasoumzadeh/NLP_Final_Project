@@ -10,10 +10,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.metrics import classification_report
 from sklearn import metrics
 from sklearn.feature_extraction.text import TfidfTransformer
-from sklearn.linear_model import LogisticRegression
+
 from sklearn.metrics import confusion_matrix
-from sklearn.naive_bayes import BernoulliNB
-from sklearn.svm import LinearSVC
+
+from sklearn.svm import LinearSVC									  							 
 from tensorflow.keras import layers
 from tensorflow.python.keras import Input
 from tensorflow.python.keras.layers import Embedding, concatenate
@@ -26,15 +26,17 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import spacy
+from sklearn.metrics import classification_report
+from sklearn import metrics
 
 JOKES_PATH = "jokes_processed_20201110.csv"
-NO_JOKES_PATH = "no_joke_20201129.csv"
+NO_JOKES_PATH = "no_jokes_amaz_yahoo_20201204.csv"
 GLOVE_PATH = "glove/glove.6B.50d.txt"
-MAXLEN = 100
+MAXLEN = 50
 DIMENSION = 50
-TRAIN_EPOCH = 1
-TRAIN_BATCHSIZE = 10
-TEST_BATCHSIZE = 10
+TRAIN_EPOCH = 20
+TRAIN_BATCHSIZE = 256
+TEST_BATCHSIZE = 16
 NUM_FEATURES = 2
 XLABEL = "Epoch"
 ACCURACYPLOT = "Acurracy_Plot"
@@ -44,10 +46,10 @@ SECOND_PERSON_WORDS = ['you', 'your', 'yours']
 nlp = spacy.load("en_core_web_sm")
 
 
-class CNNClassifier:
+class CNNClassifier():
 
     def __init__(self):
-        self.__keras_tokenizer = Tokenizer(num_words=5000)
+        self.__keras_tokenizer = Tokenizer(num_words=35000)
         self.__corpus = []
         self.__corpus_labels = []
         self.__train_data = []
@@ -168,39 +170,51 @@ class CNNClassifier:
 
         # TODO: try with default keras embedding (should be worse performance)
         embedding = Embedding(len(self.__keras_tokenizer.word_index) + 1,
-                              DIMENSION,
-                              weights=[embedding_matrix],
-                              input_length=MAXLEN,
-                              trainable=False)(sequence_input)
-        conv = layers.Conv1D(128, 5, activation='relu')(embedding)
-        seq_features = layers.GlobalMaxPooling1D()(conv)
-        model_final = layers.Concatenate()([seq_features, features])
-        model_final = layers.Dense(10, activation='relu')(model_final)
-        model_final = layers.Dense(1, activation='sigmoid')(model_final)
+                                    DIMENSION,
+                                    weights=[embedding_matrix],
+                                    input_length=MAXLEN,
+                                    trainable=False)(sequence_input)
+        x = layers.Dropout(0.1)(embedding)
+        x = layers.Conv1D(128, 3, activation='relu')(x)
+        x = layers.MaxPooling1D(3, padding='same' )(x)
+        x = layers.Conv1D(128, 3, activation='relu', padding='same')(x)
+        x = layers.MaxPooling1D(3, padding='same' )(x)
+        x = layers.Conv1D(128, 2, activation='relu', padding='same')(x)
+        x = layers.GlobalMaxPooling1D()(x)
+        merged = layers.Concatenate()([x, features])
+        merged = layers.Dropout(0.1)(merged)
+        merged = layers.Dense(20, activation='relu')(merged)
+        merged = layers.Dense(1, activation='sigmoid')(merged)
 
-        model = Model(inputs=[sequence_input, features], outputs=model_final)
+        model = Model([sequence_input, features], merged)
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy'])
 
         return model
 
+    
+    
     def __convergance_plot_builder(self, history):
         """Create the convergance plots for th loss and accuracy of the model"""
         labels = [key for key in history.history.keys()]
         print(f"Creating the accuracy plot for the model's training history")
-        plt.plot(history.history[labels[0]])
-        plt.plot(history.history[labels[1]])
+        plt.figure(figsize=(12, 5))
+        plt.subplot(1, 2, 1)
+        print(labels)
+        plt.plot(history.history['accuracy'])
+        plt.plot(history.history['val_accuracy'])
         plt.title("Model Accuracy")
         plt.ylabel("Accuracy")
         plt.xlabel(XLABEL)
         plt.legend(["training_set", "validation_set"], loc="upper left")
         # plt.show()
         plt.savefig(self.__base_path + ACCURACYPLOT)
-
+        
+        plt.subplot(1, 2, 2)
         print(f"Creating the loss plot for the model's training history")
-        plt.plot(history.history[labels[2]])
-        plt.plot(history.history[labels[3]])
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
         plt.title("Model Loss")
         plt.ylabel("Loss")
         plt.xlabel(XLABEL)
@@ -248,6 +262,12 @@ class CNNClassifier:
                                                batch_size=TEST_BATCHSIZE, verbose=1)
         print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
 
+        self.__cnn_predictions = model.predict(np.asarray(self.__tokenized_dev), batch_size=TEST_BATCHSIZE, verbose=1)
+        #print(self.__cnn_predictions)
+        accuracy_score_dev = metrics.accuracy_score(self.__dev_label, self.__cnn_predictions.round())
+        print('Dev accuracy : ' + str('{:04.2f}'.format(accuracy_score_dev))+' %')
+        print('Report on Dev_set \n', classification_report(self.__cnn_predictions.round(), self.__dev_label)) 
+        
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done")
 
