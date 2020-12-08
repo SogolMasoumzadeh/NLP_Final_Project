@@ -8,7 +8,9 @@ requirements =[
     "sentence_transformers",
     "pandas",
     "tensorflow",
-    "matplotlib"
+    "matplotlib",
+    "spacy"
+    # python -m spacy download en_core_web_sm
 ]
 
 with open ("README.md", "r") as f:
