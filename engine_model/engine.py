@@ -13,7 +13,7 @@ from sklearn.feature_extraction.text import TfidfTransformer
 
 from sklearn.metrics import confusion_matrix
 
-from sklearn.svm import LinearSVC									  							 
+from sklearn.svm import LinearSVC
 from tensorflow.keras import layers
 from tensorflow.python.keras import Input
 from tensorflow.python.keras.layers import Embedding, concatenate
@@ -37,6 +37,7 @@ DIMENSION = 50
 TRAIN_EPOCH = 20
 TRAIN_BATCHSIZE = 256
 TEST_BATCHSIZE = 16
+USE_CUSTOM_FEATURES = False
 NUM_FEATURES = 2
 XLABEL = "Epoch"
 ACCURACYPLOT = "Acurracy_Plot"
@@ -166,35 +167,40 @@ class CNNClassifier():
     def __build_cnn(self, embedding_matrix):
         """ Build the CNN model """
         sequence_input = Input(shape=(MAXLEN,), dtype='int32', name='Sequence')
-        features = Input(shape=(NUM_FEATURES,), dtype='float32', name='Features')
 
         # TODO: try with default keras embedding (should be worse performance)
         embedding = Embedding(len(self.__keras_tokenizer.word_index) + 1,
-                                    DIMENSION,
-                                    weights=[embedding_matrix],
-                                    input_length=MAXLEN,
-                                    trainable=False)(sequence_input)
+                              DIMENSION,
+                              weights=[embedding_matrix],
+                              input_length=MAXLEN,
+                              trainable=False)(sequence_input)
         x = layers.Dropout(0.1)(embedding)
         x = layers.Conv1D(128, 3, activation='relu')(x)
-        x = layers.MaxPooling1D(3, padding='same' )(x)
+        x = layers.MaxPooling1D(3, padding='same')(x)
         x = layers.Conv1D(128, 3, activation='relu', padding='same')(x)
-        x = layers.MaxPooling1D(3, padding='same' )(x)
+        x = layers.MaxPooling1D(3, padding='same')(x)
         x = layers.Conv1D(128, 2, activation='relu', padding='same')(x)
         x = layers.GlobalMaxPooling1D()(x)
-        merged = layers.Concatenate()([x, features])
+        if USE_CUSTOM_FEATURES:
+            features = Input(shape=(NUM_FEATURES,), dtype='float32', name='Features')
+            merged = layers.Concatenate()([x, features])
+        else:
+            merged = x
         merged = layers.Dropout(0.1)(merged)
         merged = layers.Dense(20, activation='relu')(merged)
         merged = layers.Dense(1, activation='sigmoid')(merged)
 
-        model = Model([sequence_input, features], merged)
+        if USE_CUSTOM_FEATURES:
+            model = Model([sequence_input, features], merged)
+        else:
+            model = Model(sequence_input, merged)
+
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy'])
 
         return model
 
-    
-    
     def __convergance_plot_builder(self, history):
         """Create the convergance plots for th loss and accuracy of the model"""
         labels = [key for key in history.history.keys()]
@@ -210,7 +216,7 @@ class CNNClassifier():
         plt.legend(["training_set", "validation_set"], loc="upper left")
         # plt.show()
         plt.savefig(self.__base_path + ACCURACYPLOT)
-        
+
         plt.subplot(1, 2, 2)
         print(f"Creating the loss plot for the model's training history")
         plt.plot(history.history['loss'])
@@ -234,8 +240,9 @@ class CNNClassifier():
 
         print(f"{str(datetime.now())}: Splitting data ...")
         self.__train_test_divider(self.__corpus, self.__corpus_labels)
-        print(f"{str(datetime.now())}: Creating feature arrays ...")
-        self.__create_feature_arrays()
+        if USE_CUSTOM_FEATURES:
+            print(f"{str(datetime.now())}: Creating feature arrays ...")
+            self.__create_feature_arrays()
         print(f"{str(datetime.now())}: Tokenizing data ...")
         self.__keras_tokenize()
         self.__padder()
@@ -248,26 +255,35 @@ class CNNClassifier():
         print(f"{str(datetime.now())}: Building / training CNN model ...")
         model = self.__build_cnn(glove_embedding)
         print(model.summary())
-        self.__cnn_history = model.fit([self.__tokenized_train, self.__train_features],
-            np.asarray(self.__train_label),
-            epochs=TRAIN_EPOCH,
-            validation_data=([self.__tokenized_dev, self.__dev_features], np.array(self.__dev_label)),
-            batch_size=TRAIN_BATCHSIZE)
+        if USE_CUSTOM_FEATURES:
+            train_in = [self.__tokenized_train, self.__train_features]
+            dev_in = [self.__tokenized_dev, self.__dev_features]
+            test_in = [np.asarray(self.__tokenized_test), np.asarray(self.__test_features)]
+        else:
+            train_in = self.__tokenized_train
+            dev_in = self.__tokenized_dev
+            test_in = self.__tokenized_test
+
+        self.__cnn_history = model.fit(train_in,
+                                       np.asarray(self.__train_label),
+                                       epochs=TRAIN_EPOCH,
+                                       validation_data=(dev_in, np.array(self.__dev_label)),
+                                       batch_size=TRAIN_BATCHSIZE)
         self.__convergance_plot_builder(self.__cnn_history)
         print(f"{str(datetime.now())}: Predicting the model on the test data ...")
-        self.__cnn_results = model.evaluate([np.asarray(self.__tokenized_test), np.asarray(self.__test_features)],
+        self.__cnn_results = model.evaluate(test_in,
                                             np.asarray(self.__test_label),
                                             batch_size=TEST_BATCHSIZE, verbose=1)
-        self.__cnn_predictions = model.predict([np.asarray(self.__tokenized_test), np.asarray(self.__test_features)],
+        self.__cnn_predictions = model.predict(test_in,
                                                batch_size=TEST_BATCHSIZE, verbose=1)
         print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
 
-        self.__cnn_predictions = model.predict([self.__tokenized_dev, self.__dev_features], batch_size=TEST_BATCHSIZE, verbose=1)
-        #print(self.__cnn_predictions)
+        self.__cnn_predictions = model.predict(dev_in, batch_size=TEST_BATCHSIZE, verbose=1)
+        # print(self.__cnn_predictions)
         accuracy_score_dev = metrics.accuracy_score(self.__dev_label, self.__cnn_predictions.round())
-        print('Dev accuracy : ' + str('{:04.2f}'.format(accuracy_score_dev))+' %')
-        print('Report on Dev_set \n', classification_report(self.__cnn_predictions.round(), self.__dev_label)) 
-        
+        print('Dev accuracy : ' + str('{:04.2f}'.format(accuracy_score_dev)) + ' %')
+        print('Report on Dev_set \n', classification_report(self.__cnn_predictions.round(), self.__dev_label))
+
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done")
 
