@@ -1,33 +1,19 @@
 import nltk
 from nltk.corpus import wordnet as wn
-#from nltk.wsd import lesk
+# from nltk.wsd import lesk
 import pandas as pd
-#import copy
-pd.set_option('max_colwidth', None)
-from nltk import word_tokenize, pos_tag
-nltk.download('punkt')
-nltk.download('wordnet')
-nltk.download('stopwords')
-nltk.download('averaged_perceptron_tagger')
-
-#!pip install -U spacy
-#!python -m spacy download en_core_web_sm
-
+# import copy
 from datetime import datetime
-
 from matplotlib.backends.qt_editor._formlayout import fedit
 from nltk import word_tokenize
 from nltk.tag import pos_tag
 from typing import List
-
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.metrics import classification_report
 from sklearn import metrics
 from sklearn.feature_extraction.text import TfidfTransformer
-
 from sklearn.metrics import confusion_matrix
-
 from sklearn.svm import LinearSVC
 from tensorflow.keras import layers
 from tensorflow.python.keras import Input
@@ -41,11 +27,25 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import spacy
+import en_core_web_sm
 from sklearn.metrics import classification_report
 from sklearn import metrics
+from collections import defaultdict
+from nltk.corpus import wordnet as wn
+from nltk.stem import PorterStemmer
+
+pd.set_option('max_colwidth', None)
+nltk.download('punkt')
+nltk.download('wordnet')
+nltk.download('stopwords')
+nltk.download('averaged_perceptron_tagger')
+
+# !pip install -U spacy
+# !python -m spacy download en_core_web_sm
 
 JOKES_PATH = "jokes_processed_20201110.csv"
 NO_JOKES_PATH = "no_jokes_amaz_yahoo_20201204.csv"
+HUMOR_PATH = "humor_dataset.csv"
 GLOVE_PATH = "glove/glove.6B.100d.txt"
 MAXLEN = 50
 DIMENSION = 100
@@ -54,16 +54,15 @@ TRAIN_BATCHSIZE = 256
 TEST_BATCHSIZE = 16
 USE_CUSTOM_FEATURES = True
 USE_PREPROCESSING = True
-NUM_FEATURES = 2
+NUM_FEATURES = 4
 XLABEL = "Epoch"
 ACCURACYPLOT = "Acurracy_Plot"
 LOSSPLOT = "Loss_Plot"
 FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
 SECOND_PERSON_WORDS = ['you', 'your', 'yours']
-#nlp = spacy.load("en_core_web_sm")
-#nlp = spacy.load("en")
-import en_core_web_sm
-nlp = en_core_web_sm.load()
+# nlp = spacy.load("en_core_web_sm")
+# nlp = spacy.load("en")
+# nlp = en_core_web_sm.load()
 
 
 class CNNClassifier():
@@ -94,6 +93,13 @@ class CNNClassifier():
         self.__cnn_results = None
         self.__cnn_predictions = None
 
+        self.__humourous_words = {}
+        with open(self.__file_path_creator(HUMOR_PATH), encoding="utf-8") as csvfile:
+            readCSV = csv.reader(csvfile, delimiter=',')
+            next(readCSV, None)
+            for row in readCSV:
+                self.__humourous_words[row[0]] = float(row[1])
+
     def __file_path_creator(self, file_name: str):
         """Create the path to the jokes and non jokes file and the glove embeddings..."""
         return os.path.abspath(file_name)
@@ -106,12 +112,14 @@ class CNNClassifier():
         if joke_flag:
             with open(file_path, encoding="utf-8") as csvfile:
                 readCSV = csv.reader(csvfile, delimiter=',')
+                next(readCSV, None)
                 for row in readCSV:
                     df.append(row[1])  # TODO: add more fields for jokes?
                     label.append(1)
         if not joke_flag:
             with open(file_path, encoding="utf-8") as csvfile:
                 readCSV = csv.reader(csvfile, delimiter=',')
+                next(readCSV, None)
                 for row in readCSV:
                     df.append(row[1])
                     label.append(0)
@@ -131,48 +139,51 @@ class CNNClassifier():
 
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
             train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
-        
+
     def pre_process_text(self, sentence):
-        from collections import defaultdict
-        from nltk.corpus import wordnet as wn 
-        import string
-        from nltk.stem import PorterStemmer
-        porter=PorterStemmer()
-        
-        
+        porter = PorterStemmer()
+
         sentence = sentence.lower()
-        sentence = sentence.replace("don't", "do not").replace("can't", "can not").replace("doesn't", "does not").replace("haven't", "have not").replace("hasn't", "has not")\
-                             .replace("won't", "will not").replace("didn't", "did not").replace("wasn't", "was not").replace("weren't", "were not").replace("I've", "I have")\
-                            .replace("it's", "it is").replace("what's", "what is").replace("you're", "you are").replace("they're", "they are").replace("we're", "we are")\
-                            .replace("I'm", "I am").replace("Don't", "Do not").replace("Can't", "Can not").replace("Doesn't", "Does not").replace("Didn't", "Did not").replace("Haven't", "Have not")\
-                            .replace("Hasn't", "Has not").replace("wouldn't","would not").replace("It's","It is")\
-                            .replace("What's","What is").replace("I'd","I would").replace("I'll","I will")
+        sentence = sentence.replace("don't", "do not").replace("can't", "can not").replace("doesn't",
+                                                                                           "does not").replace(
+            "haven't", "have not").replace("hasn't", "has not") \
+            .replace("won't", "will not").replace("didn't", "did not").replace("wasn't", "was not").replace("weren't",
+                                                                                                            "were not").replace(
+            "I've", "I have") \
+            .replace("it's", "it is").replace("what's", "what is").replace("you're", "you are").replace("they're",
+                                                                                                        "they are").replace(
+            "we're", "we are") \
+            .replace("I'm", "I am").replace("Don't", "Do not").replace("Can't", "Can not").replace("Doesn't",
+                                                                                                   "Does not").replace(
+            "Didn't", "Did not").replace("Haven't", "Have not") \
+            .replace("Hasn't", "Has not").replace("wouldn't", "would not").replace("It's", "It is") \
+            .replace("What's", "What is").replace("I'd", "I would").replace("I'll", "I will")
         sentence_token = word_tokenize(sentence)
-        
+
         #####
-        #lemmatizer
-        tag_map = defaultdict(lambda : wn.NOUN)
+        # lemmatizer
+        tag_map = defaultdict(lambda: wn.NOUN)
         tag_map['J'] = wn.ADJ
         tag_map['V'] = wn.VERB
-        tag_map['R'] = wn.ADV 
-        sentence_token = [nltk.stem.WordNetLemmatizer().lemmatize(token, tag_map[tag[0]]) for token, tag in nltk.pos_tag(sentence_token)]
+        tag_map['R'] = wn.ADV
+        sentence_token = [nltk.stem.WordNetLemmatizer().lemmatize(token, tag_map[tag[0]]) for token, tag in
+                          nltk.pos_tag(sentence_token)]
         #####
-        
-        #porter stem
-        #sentence_token = [porter.stem(token) for token in sentence_token]
-           
-        #stop_words = set(nltk.corpus.stopwords.words('english')) 
-        #sentence_token = [word for word in sentence_token if word not in stop_words]
-        #punc = string.punctuation
-        #sentence_token = [word for word in sentence_token if word not in punc]
+
+        # porter stem
+        # sentence_token = [porter.stem(token) for token in sentence_token]
+
+        # stop_words = set(nltk.corpus.stopwords.words('english'))
+        # sentence_token = [word for word in sentence_token if word not in stop_words]
+        # punc = string.punctuation
+        # sentence_token = [word for word in sentence_token if word not in punc]
         sentence = ' '.join([word for word in sentence_token])
         return sentence
-        
-    def __preprocess(self):   
-        self.__train_data = [ self.pre_process_text(sentence) for sentence in self.__train_data]
-        self.__dev_data = [ self.pre_process_text(sentence) for sentence in self.__dev_data]
-        self.__test_data = [ self.pre_process_text(sentence) for sentence in self.__test_data]
-        
+
+    def __preprocess(self):
+        self.__train_data = [self.pre_process_text(sentence) for sentence in self.__train_data]
+        self.__dev_data = [self.pre_process_text(sentence) for sentence in self.__dev_data]
+        self.__test_data = [self.pre_process_text(sentence) for sentence in self.__test_data]
 
     def __keras_tokenize(self):
         """Tokenize the train and test datasets"""
@@ -201,16 +212,20 @@ class CNNClassifier():
             sentence_length = len(words)
             features[i, 0] = len([w for w in words if w in FIRST_PERSON_WORDS]) / sentence_length
             features[i, 1] = len([w for w in words if w in SECOND_PERSON_WORDS]) / sentence_length
-            ## Third component of the custom feature
-            ## Proper nouns
-            #pos_tags = pos_tag(word_tokenize(sentence))
-            #proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
-            #features[i, 2] = len(proper_nouns) / sentence_length
+            # Third component of the custom feature
+            # Proper nouns
+            pos_tags = pos_tag(word_tokenize(sentence))
+            proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
+            features[i, 2] = len(proper_nouns) / sentence_length
 
-            ##NER for people
-            #doc = nlp(sentence)
-            #person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
-            #features[i, 2] = len(person_ents)
+            # NER for people
+            # doc = nlp(sentence)
+            # person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
+            # features[i, 2] = len(person_ents)
+
+            # Humourous words
+            humour_rating = [self.__humourous_words.get(w, 0) for w in words]
+            features[i, 3] = max(humour_rating)
             i += 1
         return features
 
@@ -228,14 +243,13 @@ class CNNClassifier():
     def __build_cnn(self, embedding_matrix):
         """ Build the CNN model """
         sequence_input = Input(shape=(MAXLEN,), dtype='int32', name='Sequence')
-        
 
         # TODO: try with default keras embedding (should be worse performance)
         embedding_layer = Embedding(len(self.__keras_tokenizer.word_index) + 1,
-                              DIMENSION,
-                              weights=[embedding_matrix],
-                              input_length=MAXLEN,
-                              trainable=False)
+                                    DIMENSION,
+                                    weights=[embedding_matrix],
+                                    input_length=MAXLEN,
+                                    trainable=False)
         embedded_sequences = embedding_layer(sequence_input)
         x = layers.Dropout(0.1)(embedded_sequences)
         x = layers.Conv1D(128, 3, activation='relu')(x)
@@ -303,15 +317,15 @@ class CNNClassifier():
 
         print(f"{str(datetime.now())}: Splitting data ...")
         self.__train_test_divider(self.__corpus, self.__corpus_labels)
-        
-        if USE_PREPROCESSING:
-            print(f"{str(datetime.now())}: Preprocessing sentences (lemmatization at moment)...")
-            self.__preprocess()      
-        
+
         if USE_CUSTOM_FEATURES:
             print(f"{str(datetime.now())}: Creating feature arrays ...")
             self.__create_feature_arrays()
-        
+
+        if USE_PREPROCESSING:
+            print(f"{str(datetime.now())}: Preprocessing sentences (lemmatization at moment)...")
+            self.__preprocess()
+
         print(f"{str(datetime.now())}: Tokenizing data ...")
         self.__keras_tokenize()
         self.__padder()
