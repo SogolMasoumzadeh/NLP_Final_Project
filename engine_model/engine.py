@@ -40,6 +40,7 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+import spacy
 from sklearn.metrics import classification_report
 from sklearn import metrics
 
@@ -51,9 +52,9 @@ DIMENSION = 100
 TRAIN_EPOCH = 20
 TRAIN_BATCHSIZE = 256
 TEST_BATCHSIZE = 16
-USE_CUSTOM_FEATURES = True
+USE_CUSTOM_FEATURES = False
 USE_PREPROCESSING = True
-NUM_FEATURES = 2
+NUM_FEATURES = 3
 XLABEL = "Epoch"
 ACCURACYPLOT = "Acurracy_Plot"
 LOSSPLOT = "Loss_Plot"
@@ -61,18 +62,14 @@ FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
 SECOND_PERSON_WORDS = ['you', 'your', 'yours']
 #nlp = spacy.load("en_core_web_sm")
 #nlp = spacy.load("en")
-import spacy
-nlp = spacy.en_core_web_sm.load()
+import en_core_web_sm
+nlp = en_core_web_sm.load()
 
 
 class CNNClassifier():
 
     def __init__(self):
         self.__keras_tokenizer = Tokenizer(num_words=35000, filters='', lower=False)
-        self.__vectorizer = CountVectorizer()
-        self.__TfidfTransformer = TfidfTransformer(use_idf=True)
-        self.__vanilla_classifier = CalibratedClassifierCV(
-            LinearSVC(class_weight='balanced', penalty='l2', loss='squared_hinge', dual=True), method='isotonic')
         self.__corpus = []
         self.__corpus_labels = []
         self.__train_data = []
@@ -133,16 +130,7 @@ class CNNClassifier():
             train_test_split(data_file, data_label, test_size=0.1, random_state=1000)
 
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
-            train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
-
-    def __pre_processor(self, input_data):
-        """Preprocessing the data to be vectorized and then create the bag-of-words representation from it"""
-        vectorized_data = self.__vectorizer.fit_transform(input_data)
-        return self.__TfidfTransformer.fit_transform(vectorized_data)
-
-    def __build_vanilla_classifier(self):
-        """Build a weighted classifier as the vanilla classifier"""
-        self.__vanilla_classifier.fit(self.__train_data, self.__train_label)
+            train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1100)
         
     def pre_process_text(self, sentence):
         from collections import defaultdict
@@ -173,8 +161,8 @@ class CNNClassifier():
         #porter stem
         #sentence_token = [porter.stem(token) for token in sentence_token]
            
-        #stop_words = set(nltk.corpus.stopwords.words('english')) 
-        #sentence_token = [word for word in sentence_token if word not in stop_words]
+        stop_words = set(nltk.corpus.stopwords.words('english')) 
+        sentence_token = [word for word in sentence_token if word not in stop_words]
         #punc = string.punctuation
         #sentence_token = [word for word in sentence_token if word not in punc]
         sentence = ' '.join([word for word in sentence_token])
@@ -205,6 +193,7 @@ class CNNClassifier():
         self.__test_features = self.__create_feature_array(self.__test_data)
 
     def __create_feature_array(self, data):
+        #humor_words = pd.read_csv("humor_word_restricted.txt", sep='\r\n', engine='python').values.tolist()
         features = np.empty(shape=(len(data), NUM_FEATURES))
         i = 0
         for sentence in data:
@@ -218,11 +207,11 @@ class CNNClassifier():
             #pos_tags = pos_tag(word_tokenize(sentence))
             #proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
             #features[i, 2] = len(proper_nouns) / sentence_length
-
+            #features[i, 3] = len([w for w in words if w in humor_words])
             ##NER for people
-            #doc = nlp(sentence)
-            #person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
-            #features[i, 2] = len(person_ents)
+            doc = nlp(sentence)
+            person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
+            features[i, 2] = len(person_ents)
             i += 1
         return features
 
@@ -303,7 +292,7 @@ class CNNClassifier():
         # plt.show()
         plt.savefig(self.__base_path + LOSSPLOT)
 
-    def run(self, vanilla_classifier: bool, preprocessing: bool, custom_features: bool):
+    def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES_PATH)
         self.__non_jokes_path = self.__file_path_creator(NO_JOKES_PATH)
@@ -313,19 +302,16 @@ class CNNClassifier():
         non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
         self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
 
-        if vanilla_classifier:
-            print(f"{str(datetime.now())}: Create bag of words representation ...")
-            self.__corpus = self.__pre_processor(self.__corpus)
         print(f"{str(datetime.now())}: Splitting data ...")
         self.__train_test_divider(self.__corpus, self.__corpus_labels)
-        
-        if USE_PREPROCESSING:
-            print(f"{str(datetime.now())}: Preprocessing sentences (lemmatization at moment)...")
-            self.__preprocess()      
-        
+ 
         if USE_CUSTOM_FEATURES:
             print(f"{str(datetime.now())}: Creating feature arrays ...")
             self.__create_feature_arrays()
+
+        if USE_PREPROCESSING:
+            print(f"{str(datetime.now())}: Preprocessing sentences (lemmatization at moment)...")
+            self.__preprocess()      
         
         print(f"{str(datetime.now())}: Tokenizing data ...")
         self.__keras_tokenize()
@@ -336,28 +322,6 @@ class CNNClassifier():
         glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
                                                           self.__keras_tokenizer.word_index)
         np.save('glove_embedding', glove_embedding)
-        if vanilla_classifier:
-            print(f"{str(datetime.now())}: Training the vanilla classifier ...")
-            self.__build_vanilla_classifier()
-
-            y_predict = self.__vanilla_classifier.predict(self.__dev_data)
-            print(confusion_matrix(self.__dev_label, y_predict))
-
-            accuracy_score_test = metrics.accuracy_score(self.__dev_label, y_predict)
-            print('Test accuracy : ' + str('{:04.2f}'.format(accuracy_score_test * 100)) + ' %')
-            print('Report on Test_set \n', classification_report(y_predict, self.__dev_label))
-
-            # Probabilities
-            y_confidence = self.__vanilla_classifier.predict_proba(self.__dev_data)
-            unconfident_results = []
-            i = 0
-            for row in y_confidence:
-                if 0.35 < row[0] < 0.65:
-                    unconfident_results.append((row, i))
-                i += 1
-            print(y_confidence[:5, :])
-            print(len(unconfident_results))
-
         print(f"{str(datetime.now())}: Building / training CNN model ...")
         model = self.__build_cnn(glove_embedding)
         print(model.summary())
@@ -392,7 +356,6 @@ class CNNClassifier():
 
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done")
-
 
 
 
