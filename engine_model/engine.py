@@ -84,7 +84,6 @@ class CNNClassifier():
         self.__tokenized_train = []
         self.__tokenized_test = []
         self.__tokenized_dev = []
-        self.__processed_corpus = []
         self.__train_features = None
         self.__dev_features = None
         self.__test_features = None
@@ -304,7 +303,7 @@ class CNNClassifier():
         # plt.show()
         plt.savefig(self.__base_path + LOSSPLOT)
 
-    def run(self):
+    def run(self, vanilla_classifier: bool, preprocessing: bool, custom_features: bool):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES_PATH)
         self.__non_jokes_path = self.__file_path_creator(NO_JOKES_PATH)
@@ -314,6 +313,9 @@ class CNNClassifier():
         non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
         self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
 
+        if vanilla_classifier:
+            print(f"{str(datetime.now())}: Create bag of words representation ...")
+            self.__corpus = self.__pre_processor(self.__corpus)
         print(f"{str(datetime.now())}: Splitting data ...")
         self.__train_test_divider(self.__corpus, self.__corpus_labels)
         
