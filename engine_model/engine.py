@@ -69,6 +69,10 @@ class CNNClassifier():
 
     def __init__(self):
         self.__keras_tokenizer = Tokenizer(num_words=35000, filters='', lower=False)
+        self.__vectorizer = CountVectorizer()
+        self.__TfidfTransformer = TfidfTransformer(use_idf=True)
+        self.__vanilla_classifier = CalibratedClassifierCV(
+            LinearSVC(class_weight='balanced', penalty='l2', loss='squared_hinge', dual=True), method='isotonic')
         self.__corpus = []
         self.__corpus_labels = []
         self.__train_data = []
@@ -80,6 +84,7 @@ class CNNClassifier():
         self.__tokenized_train = []
         self.__tokenized_test = []
         self.__tokenized_dev = []
+        self.__processed_corpus = []
         self.__train_features = None
         self.__dev_features = None
         self.__test_features = None
@@ -130,6 +135,15 @@ class CNNClassifier():
 
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
             train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
+
+    def __pre_processor(self, input_data):
+        """Preprocessing the data to be vectorized and then create the bag-of-words representation from it"""
+        vectorized_data = self.__vectorizer.fit_transform(input_data)
+        return self.__TfidfTransformer.fit_transform(vectorized_data)
+
+    def __build_vanilla_classifier(self):
+        """Build a weighted classifier as the vanilla classifier"""
+        self.__vanilla_classifier.fit(self.__train_data, self.__train_label)
         
     def pre_process_text(self, sentence):
         from collections import defaultdict
@@ -356,82 +370,6 @@ class CNNClassifier():
         print(f"{str(datetime.now())}: Done")
 
 
-class LinearClassifier:
-    def __init__(self):
-        self.__corpus = []
-        self.__corpus_labels = []
-        self.__train_data = []
-        self.__test_data = []
-        self.__train_label = []
-        self.__test_label = []
-        self.__dev_data = []
-        self.__dev_label = []
-
-        self.__jokes_path = None
-        self.__non_jokes_path = None
-        self.__classifier = None
-        self.__vectorizer = None
-        self.__TfidfTransformer = None
-
-    def __file_path_creator(self, file_name: str):
-        """Create the path to the jokes and non jokes file and the glove embeddings..."""
-        return os.path.abspath(file_name)
-
-    def __data_loader(self, file_path: str, joke_flag: bool):
-        """Data loader from the .csv files"""
-        df = []
-        label = []
-
-        if joke_flag:
-            with open(file_path, encoding="utf-8") as csvfile:
-                readCSV = csv.reader(csvfile, delimiter=',')
-                for row in readCSV:
-                    df.append(row[1])  # TODO: add more fields for jokes?
-                    label.append(1)
-        if not joke_flag:
-            with open(file_path, encoding="utf-8") as csvfile:
-                readCSV = csv.reader(csvfile, delimiter=',')
-                for row in readCSV:
-                    df.append(row[1])
-                    label.append(0)
-        return df, label
-
-    def __corpus_creator(self, joke_list, non_joke_list, joke_labels: List[int], non_joke_labels: List[int]):
-        non_joke_list.extend(joke_list)
-        non_joke_labels.extend(joke_labels)
-        self.__corpus = non_joke_list
-        self.__corpus_labels = non_joke_labels
-
-    def __train_vectorizer(self, data_set):
-        self.__vectorizer = CountVectorizer()
-        self.__vectorizer.fit_transform(data_set)
-
-    def __train_TfidfTransformer(self, data_set):
-        self.__TfidfTransformer = TfidfTransformer(use_idf=True)
-        self.__TfidfTransformer.fit_transform(data_set)
-
-    def classifier_prediction(self, X):
-        """predict label"""
-        vect_tfidf = self.__TfidfTransformer.transform(self.__vectorizer.transform(X))
-        return self.__classifier.predict(vect_tfidf), self.__classifier.predict_proba(vect_tfidf)[:, 1]
-
-    def __train_test_divider(self, X, y):
-        """Splitting the data between train and test"""
-        self.__train_data, self.__test_data, self.__train_label, self.__test_label = \
-            train_test_split(X, y, test_size=0.1, random_state=1000)
-
-        self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
-            train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1400)
-
-    def __train_classifier(self):
-        # weights = {0:1.0, 1:100.0}
-        # class_weight='balanced'
-
-        # self.__classifier = LinearSVC(class_weight='balanced', penalty='l2', loss='squared_hinge', dual=True)
-        self.__classifier = CalibratedClassifierCV(
-            LinearSVC(class_weight='balanced', penalty='l2', loss='squared_hinge', dual=True), method='isotonic')
-        self.__classifier.fit(self.__train_data, self.__train_label)
-
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES_PATH)
@@ -441,17 +379,16 @@ class LinearClassifier:
         non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
         self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
 
+        print(f"{str(datetime.now())}: Pre-processing the data ...")
+        self.__processed_corpus = self.__pre_processor(self.__corpus)
+
         print(f"{str(datetime.now())}: Splitting data ...")
-        self.__train_vectorizer(self.__corpus)
-        X = self.__vectorizer.transform(self.__corpus)
-        self.__train_TfidfTransformer(X)
-        X = self.__TfidfTransformer.transform(X)
-        self.__train_test_divider(X, self.__corpus_labels)
+        self.__train_test_divider(self.__processed_corpus, self.__corpus_labels)
 
-        print(f"{str(datetime.now())}: Training classifier ...")
-        self.__train_classifier()
+        print(f"{str(datetime.now())}: Training the vanilla classifier ...")
+        self.__build_vanilla_classifier()
 
-        y_predict = self.__classifier.predict(self.__dev_data)
+        y_predict = self.__vanilla_classifier.predict(self.__dev_data)
         print(confusion_matrix(self.__dev_label, y_predict))
 
         accuracy_score_test = metrics.accuracy_score(self.__dev_label, y_predict)
@@ -459,7 +396,7 @@ class LinearClassifier:
         print('Report on Test_set \n', classification_report(y_predict, self.__dev_label))
 
         # Probabilities
-        y_confidence = self.__classifier.predict_proba(self.__dev_data)
+        y_confidence = self.__vanilla_classifier.predict_proba(self.__dev_data)
         unconfident_results = []
         i = 0
         for row in y_confidence:
@@ -468,3 +405,8 @@ class LinearClassifier:
             i += 1
         print(y_confidence[:5, :])
         print(len(unconfident_results))
+
+
+
+
+
