@@ -1,6 +1,7 @@
+from datetime import datetime
+from typing import List
 import nltk
-from nltk.corpus import wordnet as wn
-#from nltk.wsd import lesk
+
 import pandas as pd
 #import copy
 pd.set_option('max_colwidth', None)
@@ -10,21 +11,15 @@ nltk.download('wordnet')
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
 
-#!pip install -U spacy
-#!python -m spacy download en_core_web_sm
-
-from datetime import datetime
-
-from matplotlib.backends.qt_editor._formlayout import fedit
 from nltk import word_tokenize
 from nltk.tag import pos_tag
-from typing import List
+
 
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 from sklearn.metrics import classification_report
 from sklearn import metrics
-from sklearn.feature_extraction.text import TfidfTransformer
+
 
 from sklearn.metrics import confusion_matrix
 
@@ -33,12 +28,12 @@ from tensorflow.keras import layers
 from tensorflow.python.keras import Input
 from tensorflow.python.keras.layers import Embedding, concatenate
 from tensorflow.python.keras.models import Sequential, Model
-import csv
+
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import numpy as np
-import os
+
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 from sklearn import metrics
@@ -61,8 +56,8 @@ FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
 SECOND_PERSON_WORDS = ['you', 'your', 'yours']
 #nlp = spacy.load("en_core_web_sm")
 #nlp = spacy.load("en")
-import spacy
-nlp = spacy.en_core_web_sm.load()
+# import spacy
+# nlp = spacy.en_core_web_sm.load()
 
 
 class CNNClassifier():
@@ -97,134 +92,69 @@ class CNNClassifier():
         self.__cnn_results = None
         self.__cnn_predictions = None
 
-    def __file_path_creator(self, file_name: str):
-        """Create the path to the jokes and non jokes file and the glove embeddings..."""
-        return os.path.abspath(file_name)
 
-    def __data_loader(self, file_path: str, joke_flag: bool):
-        """Data loader from the .csv files"""
-        df = []
-        label = []
-
-        if joke_flag:
-            with open(file_path, encoding="utf-8") as csvfile:
-                readCSV = csv.reader(csvfile, delimiter=',')
-                for row in readCSV:
-                    df.append(row[1])  # TODO: add more fields for jokes?
-                    label.append(1)
-        if not joke_flag:
-            with open(file_path, encoding="utf-8") as csvfile:
-                readCSV = csv.reader(csvfile, delimiter=',')
-                for row in readCSV:
-                    df.append(row[1])
-                    label.append(0)
-        return df, label
-
-    def __corpus_creator(self, joke_list, non_joke_list, joke_labels: List[int], non_joke_labels: List[int]):
-        """Combine jokes and non-jokes into single data set"""
-        non_joke_list.extend(joke_list)
-        non_joke_labels.extend(joke_labels)
-        self.__corpus = non_joke_list
-        self.__corpus_labels = non_joke_labels
-
-    def __train_test_divider(self, data_file: List[str], data_label):
-        """Splitting the data between train and test"""
+    def __train_test_divider(self, data: List[str], data_label):
+        """Splitting the data between train, dev and test
+        as the input it can take the original corpus or the processed corpus"""
         self.__train_data, self.__test_data, self.__train_label, self.__test_label = \
-            train_test_split(data_file, data_label, test_size=0.1, random_state=1000)
+            train_test_split(data, data_label, test_size=0.1, random_state=1000)
 
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
             train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
 
-    def __pre_processor(self, input_data):
-        """Preprocessing the data to be vectorized and then create the bag-of-words representation from it"""
-        vectorized_data = self.__vectorizer.fit_transform(input_data)
-        return self.__TfidfTransformer.fit_transform(vectorized_data)
+    def __pre_processor(self, input_data: List[str], original_corpus: bool):
+        """create the bag-of-words representation from the input corpus
+        In the case of using the train, dev and test set from original corpus,
+         the corpus should be vectorized ..."""
+        if original_corpus:
+            input_data = self.__vectorizer.fit_transform(input_data)
+        return self.__TfidfTransformer.fit_transform(input_data)
 
     def __build_vanilla_classifier(self):
         """Build a weighted classifier as the vanilla classifier"""
         self.__vanilla_classifier.fit(self.__train_data, self.__train_label)
-        
-    def pre_process_text(self, sentence):
-        from collections import defaultdict
-        from nltk.corpus import wordnet as wn 
-        import string
-        from nltk.stem import PorterStemmer
-        porter=PorterStemmer()
-        
-        
-        sentence = sentence.lower()
-        sentence = sentence.replace("don't", "do not").replace("can't", "can not").replace("doesn't", "does not").replace("haven't", "have not").replace("hasn't", "has not")\
-                             .replace("won't", "will not").replace("didn't", "did not").replace("wasn't", "was not").replace("weren't", "were not").replace("I've", "I have")\
-                            .replace("it's", "it is").replace("what's", "what is").replace("you're", "you are").replace("they're", "they are").replace("we're", "we are")\
-                            .replace("I'm", "I am").replace("Don't", "Do not").replace("Can't", "Can not").replace("Doesn't", "Does not").replace("Didn't", "Did not").replace("Haven't", "Have not")\
-                            .replace("Hasn't", "Has not").replace("wouldn't","would not").replace("It's","It is")\
-                            .replace("What's","What is").replace("I'd","I would").replace("I'll","I will")
-        sentence_token = word_tokenize(sentence)
-        
-        #####
-        #lemmatizer
-        tag_map = defaultdict(lambda : wn.NOUN)
-        tag_map['J'] = wn.ADJ
-        tag_map['V'] = wn.VERB
-        tag_map['R'] = wn.ADV 
-        sentence_token = [nltk.stem.WordNetLemmatizer().lemmatize(token, tag_map[tag[0]]) for token, tag in nltk.pos_tag(sentence_token)]
-        #####
-        
-        #porter stem
-        #sentence_token = [porter.stem(token) for token in sentence_token]
-           
-        #stop_words = set(nltk.corpus.stopwords.words('english')) 
-        #sentence_token = [word for word in sentence_token if word not in stop_words]
-        #punc = string.punctuation
-        #sentence_token = [word for word in sentence_token if word not in punc]
-        sentence = ' '.join([word for word in sentence_token])
-        return sentence
-        
-    def __preprocess(self):   
-        self.__train_data = [ self.pre_process_text(sentence) for sentence in self.__train_data]
-        self.__dev_data = [ self.pre_process_text(sentence) for sentence in self.__dev_data]
-        self.__test_data = [ self.pre_process_text(sentence) for sentence in self.__test_data]
-        
 
     def __keras_tokenize(self):
-        """Tokenize the train and test datasets"""
+        """Tokenize the train and test datasets""" #TODO probably the tokenizer should be trained on the test as well
         self.__keras_tokenizer.fit_on_texts(self.__train_data + self.__dev_data)
         self.__tokenized_train = self.__keras_tokenizer.texts_to_sequences(self.__train_data)
         self.__tokenized_dev = self.__keras_tokenizer.texts_to_sequences(self.__dev_data)
         self.__tokenized_test = self.__keras_tokenizer.texts_to_sequences(self.__test_data)
 
     def __padder(self):
-        """Padding the test and train datasets with zeros to obtain same length vectors"""
+        """Padding dat sets with zeros to obtain same length vectors"""
         self.__tokenized_train = pad_sequences(self.__tokenized_train, padding="post", maxlen=MAXLEN)
         self.__tokenized_dev = pad_sequences(self.__tokenized_dev, padding="post", maxlen=MAXLEN)
         self.__tokenized_test = pad_sequences(self.__tokenized_test, padding="post", maxlen=MAXLEN)
 
-    def __create_feature_arrays(self):
-        self.__train_features = self.__create_feature_array(self.__train_data)
-        self.__dev_features = self.__create_feature_array(self.__dev_data)
-        self.__test_features = self.__create_feature_array(self.__test_data)
 
-    def __create_feature_array(self, data):
-        features = np.empty(shape=(len(data), NUM_FEATURES))
-        i = 0
-        for sentence in data:
+    def __create_feature_array(self, data: List[str], count = NUM_FEATURES):
+        """Adding hand-crafted features to the corpus"""
+        features = np.empty(shape=(len(data), count))
+        for i, sentence in enumerate(data):
             sentence_lower = sentence.lower()
             words = word_tokenize(sentence_lower)
             sentence_length = len(words)
             features[i, 0] = len([w for w in words if w in FIRST_PERSON_WORDS]) / sentence_length
             features[i, 1] = len([w for w in words if w in SECOND_PERSON_WORDS]) / sentence_length
-            ## Third component of the custom feature
-            ## Proper nouns
-            #pos_tags = pos_tag(word_tokenize(sentence))
-            #proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
-            #features[i, 2] = len(proper_nouns) / sentence_length
-
-            ##NER for people
-            #doc = nlp(sentence)
-            #person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
-            #features[i, 2] = len(person_ents)
-            i += 1
+            # if count > 2:
+            #     # Third component of the custom feature
+            #     # Proper nouns
+            #     print(f"Evaluating the proper nouns within the corpus ... ")
+            #     pos_tags = pos_tag(word_tokenize(sentence))
+            #     proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
+            #     features[i, 2] = len(proper_nouns) / sentence_length
+            #
+            #     #NER for people
+            #     doc = nlp(sentence)
+            #     person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
+            #     features[i, 2] = len(person_ents)
         return features
+    def __create_feature_wrapper(self):
+        """Wrapepr function for the function __create_feature_array"""
+        self.__train_features = self.__create_feature_array(self.__train_data)
+        self.__dev_features = self.__create_feature_array(self.__dev_data)
+        self.__test_features = self.__create_feature_array(self.__test_data)
 
     def __glove_embeddings_creator(self, glove_file_path: str, dimension: int, keras_output):
         """Creating the embeddings for the input data (tokenized) based ont he GloVe method"""
@@ -319,11 +249,11 @@ class CNNClassifier():
         print(f"{str(datetime.now())}: Splitting data ...")
         self.__train_test_divider(self.__corpus, self.__corpus_labels)
         
-        if USE_PREPROCESSING:
+        if preprocessing:
             print(f"{str(datetime.now())}: Preprocessing sentences (lemmatization at moment)...")
             self.__preprocess()      
         
-        if USE_CUSTOM_FEATURES:
+        if custom_features: #TODO Put the function befor the preprocessing
             print(f"{str(datetime.now())}: Creating feature arrays ...")
             self.__create_feature_arrays()
         
@@ -361,7 +291,7 @@ class CNNClassifier():
         print(f"{str(datetime.now())}: Building / training CNN model ...")
         model = self.__build_cnn(glove_embedding)
         print(model.summary())
-        if USE_CUSTOM_FEATURES:
+        if custom_features:
             train_in = [self.__tokenized_train, self.__train_features]
             dev_in = [self.__tokenized_dev, self.__dev_features]
             test_in = [np.asarray(self.__tokenized_test), np.asarray(self.__test_features)]
