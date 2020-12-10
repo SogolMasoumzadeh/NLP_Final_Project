@@ -336,6 +336,28 @@ class CNNClassifier():
         glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
                                                           self.__keras_tokenizer.word_index)
         np.save('glove_embedding', glove_embedding)
+        if vanilla_classifier:
+            print(f"{str(datetime.now())}: Training the vanilla classifier ...")
+            self.__build_vanilla_classifier()
+
+            y_predict = self.__vanilla_classifier.predict(self.__dev_data)
+            print(confusion_matrix(self.__dev_label, y_predict))
+
+            accuracy_score_test = metrics.accuracy_score(self.__dev_label, y_predict)
+            print('Test accuracy : ' + str('{:04.2f}'.format(accuracy_score_test * 100)) + ' %')
+            print('Report on Test_set \n', classification_report(y_predict, self.__dev_label))
+
+            # Probabilities
+            y_confidence = self.__vanilla_classifier.predict_proba(self.__dev_data)
+            unconfident_results = []
+            i = 0
+            for row in y_confidence:
+                if 0.35 < row[0] < 0.65:
+                    unconfident_results.append((row, i))
+                i += 1
+            print(y_confidence[:5, :])
+            print(len(unconfident_results))
+
         print(f"{str(datetime.now())}: Building / training CNN model ...")
         model = self.__build_cnn(glove_embedding)
         print(model.summary())
@@ -370,43 +392,6 @@ class CNNClassifier():
 
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done")
-
-
-    def run(self):
-        print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
-        self.__jokes_path = self.__file_path_creator(JOKES_PATH)
-        self.__non_jokes_path = self.__file_path_creator(NO_JOKES_PATH)
-
-        jokes, jokes_labels = self.__data_loader(self.__jokes_path, True)
-        non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
-        self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
-
-        print(f"{str(datetime.now())}: Pre-processing the data ...")
-        self.__processed_corpus = self.__pre_processor(self.__corpus)
-
-        print(f"{str(datetime.now())}: Splitting data ...")
-        self.__train_test_divider(self.__processed_corpus, self.__corpus_labels)
-
-        print(f"{str(datetime.now())}: Training the vanilla classifier ...")
-        self.__build_vanilla_classifier()
-
-        y_predict = self.__vanilla_classifier.predict(self.__dev_data)
-        print(confusion_matrix(self.__dev_label, y_predict))
-
-        accuracy_score_test = metrics.accuracy_score(self.__dev_label, y_predict)
-        print('Test accuracy : ' + str('{:04.2f}'.format(accuracy_score_test * 100)) + ' %')
-        print('Report on Test_set \n', classification_report(y_predict, self.__dev_label))
-
-        # Probabilities
-        y_confidence = self.__vanilla_classifier.predict_proba(self.__dev_data)
-        unconfident_results = []
-        i = 0
-        for row in y_confidence:
-            if 0.35 < row[0] < 0.65:
-                unconfident_results.append((row, i))
-            i += 1
-        print(y_confidence[:5, :])
-        print(len(unconfident_results))
 
 
 
