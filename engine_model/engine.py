@@ -40,7 +40,6 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-import spacy
 from sklearn.metrics import classification_report
 from sklearn import metrics
 
@@ -62,8 +61,8 @@ FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
 SECOND_PERSON_WORDS = ['you', 'your', 'yours']
 #nlp = spacy.load("en_core_web_sm")
 #nlp = spacy.load("en")
-import en_core_web_sm
-nlp = en_core_web_sm.load()
+import spacy
+nlp = spacy.en_core_web_sm.load()
 
 
 class CNNClassifier():

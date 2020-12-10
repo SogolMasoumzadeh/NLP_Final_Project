@@ -9,8 +9,7 @@ requirements =[
     "pandas",
     "tensorflow",
     "matplotlib",
-    "spacy"
-    # python -m spacy download en_core_web_sm
+    "spacy",
 ]
 
 with open ("README.md", "r") as f:

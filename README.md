@@ -21,9 +21,14 @@ Running modules:
 
 
 ```bash
-#For running the main engine:
+#For running the main engine without hand-crafted features:
 
 pyhton -m engine_model
+```
+```bash
+#For running the main engine including hand-crafted features:
+
+python -m spacy download en_core_web_sm
 ```
 
 
