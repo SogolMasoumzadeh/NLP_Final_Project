@@ -5,3 +5,5 @@ def main():
     processor = TextProcessor()
     processor.run()
 
+main()
+

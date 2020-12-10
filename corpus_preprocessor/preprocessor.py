@@ -23,9 +23,9 @@ class TextProcessor():
         self.__train_label = []
         self.__dev_label = []
         self.__test_label = []
-        self.__word_tokenize = word_tokenize()
-        self.__lemmatizer = WordNetLemmatizer()
-        self.__tagger = pos_tag()
+        self.__word_tokenize = word_tokenize
+        self.__lemmatizer = WordNetLemmatizer
+        self.__tagger = pos_tag
 
     def __file_path_creator(self, file_name: str):
         """Create the path to the jokes and non jokes file and the glove embeddings..."""
@@ -71,7 +71,7 @@ class TextProcessor():
                         "weren't": "were not", "it's": "it is", "what's": "what is", "you're": "you are",
                         "they're": "they are", "we're": "we are"}
         for key in replace_dict:
-            sentence.replace(replace_dict[key])
+            sentence.replace(key, replace_dict[key])
         print(f"Tokenizing the input sentence ...")
         sentence_token = self.__word_tokenize(sentence)
         print(f"Lematizing the input sentence ...")
