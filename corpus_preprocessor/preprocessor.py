@@ -11,6 +11,7 @@ import numpy as np
 
 JOKES = "jokes_processed_20201110.csv"
 NO_JOKES = "no_jokes_amaz_yahoo_20201204.csv"
+RESULT = "Results"
 
 class TextProcessor():
 
@@ -40,7 +41,7 @@ class TextProcessor():
             with open(file_path, encoding="utf-8") as csvfile:
                 readCSV = csv.reader(csvfile, delimiter=',')
                 for row in readCSV:
-                    df.append(row[1])  # TODO: add more fields for jokes?
+                    df.append(row[1])
                     label.append(1)
         if not joke_flag:
             with open(file_path, encoding="utf-8") as csvfile:
@@ -91,12 +92,19 @@ class TextProcessor():
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES)
         self.__non_jokes_path = self.__file_path_creator(NO_JOKES)
-        self.__base_path = self.__jokes_path[:-len(JOKES)]
+        self.base_path = self.__jokes_path[:-len(JOKES)]
+        try:
+                os.mkdir(self.base_path+"/"+RESULT)
+        except:
+            print(f"The desired directory already exists...")
+        else:
+            print(f"The directory is successfully created ...")
 
         jokes, jokes_labels = self.__data_loader(self.__jokes_path, True)
         non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
         print(f"Creating the main dataset consisting of humor and non-humor ...")
         self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
+        os.chdir(self.base_path+"/"+RESULT)
         np.save("original_corpus", self.__main_corpus)
         print(f" Pre-processing the corpus and lemmatize it ...")
         processed_corpus = self.__pre_process_wrapper(self.__main_corpus)
