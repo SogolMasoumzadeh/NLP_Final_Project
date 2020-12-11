@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import List
 import nltk
-
 import pandas as pd
+import os
 #import copy
 pd.set_option('max_colwidth', None)
 from nltk import word_tokenize, pos_tag
@@ -37,7 +37,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 from sklearn import metrics
-
 JOKES_PATH = "jokes_processed_20201110.csv"
 NO_JOKES_PATH = "no_jokes_amaz_yahoo_20201204.csv"
 GLOVE_PATH = "glove/glove.6B.100d.txt"
@@ -91,6 +90,13 @@ class CNNClassifier():
         self.__cnn_history = None
         self.__cnn_results = None
         self.__cnn_predictions = None
+        self.__base_path = None
+
+    def __directory_transfer(self, path:str):
+        """Change the directory adress to the desired adress"""
+        self.__base_path = os.getcwd()
+        os.chdir(self.__base_path+"/"+path)
+        print(f"The path has been changed to {os.getcwd()} ...")
 
 
     def __train_test_divider(self, data: List[str], data_label):
@@ -190,7 +196,6 @@ class CNNClassifier():
             merged = layers.Dense(20, activation='relu')(merged)
             merged = layers.Dense(1, activation='sigmoid')(merged)
             model = Model([sequence_input, features], merged)
-
         else:
             merged = x
             merged = layers.Dropout(0.1)(merged)
@@ -201,11 +206,11 @@ class CNNClassifier():
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy'])
-
         return model
 
     def __convergance_plot_builder(self, history):
-        """Create the convergance plots for th loss and accuracy of the model"""
+        """Create the convergence plots for th loss and accuracy of the model"""
+        self.__directory_transfer("Results")
         labels = [key for key in history.history.keys()]
         print(f"Creating the accuracy plot for the model's training history")
         plt.figure(figsize=(12, 5))
@@ -218,7 +223,7 @@ class CNNClassifier():
         plt.xlabel(XLABEL)
         plt.legend(["training_set", "validation_set"], loc="upper left")
         # plt.show()
-        plt.savefig(self.__base_path + ACCURACYPLOT)
+        plt.savefig(ACCURACYPLOT)
 
         plt.subplot(1, 2, 2)
         print(f"Creating the loss plot for the model's training history")
