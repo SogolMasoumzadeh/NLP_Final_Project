@@ -1,62 +1,50 @@
 from datetime import datetime
-from typing import List
-import nltk
+import numpy as np
 import pandas as pd
+pd.set_option('max_colwidth', None)
+import matplotlib.pyplot as plt
 import seaborn
 import os
-#import copy
-pd.set_option('max_colwidth', None)
-from nltk import word_tokenize, pos_tag
-nltk.download('punkt')
-nltk.download('wordnet')
-nltk.download('stopwords')
-nltk.download('averaged_perceptron_tagger')
-
+import nltk
 from nltk import word_tokenize
-from nltk.tag import pos_tag
-
 
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
-from sklearn.metrics import classification_report
-from sklearn import metrics
-
-
-from sklearn.metrics import confusion_matrix
-
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.svm import LinearSVC
+
 from tensorflow.keras import layers
 from tensorflow.python.keras import Input
-from tensorflow.python.keras.layers import Embedding, concatenate
-from tensorflow.python.keras.models import Sequential, Model
-
-from sklearn.model_selection import train_test_split
+from tensorflow.python.keras.layers import Embedding
+from tensorflow.python.keras.models import Model
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import numpy as np
 
-import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report
-from sklearn import metrics
+
 ORIGINAL_DATA = "original_corpus.npy"
 PROCESSED_DATA = "processed_corpus.npy"
 LABELS = "corpus_labels.npy"
 GLOVE = "glove/glove.6B.100d.txt"
+
+NUM_FEATURES = 2
+FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
+SECOND_PERSON_WORDS = ['you', 'your', 'yours']
+
 MAXLEN = 50
 DIMENSION = 100
 TRAIN_EPOCH = 20
 TRAIN_BATCHSIZE = 256
 TEST_BATCHSIZE = 16
-USE_CUSTOM_FEATURES = True
-USE_PREPROCESSING = True
-NUM_FEATURES = 2
+
+LOWER_LIMIT = 0.35
+UPPER_LIMIT = 0.65
+
 XLABEL = "Epoch"
 ACCURACYPLOT = "Acurracy_Plot"
 LOSSPLOT = "Loss_Plot"
-FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
-SECOND_PERSON_WORDS = ['you', 'your', 'yours']
-LOWER_LIMIT = 0.35
-UPPER_LIMIT = 0.65
+
+
 #nlp = spacy.load("en_core_web_sm")
 #nlp = spacy.load("en")
 # import spacy
@@ -64,6 +52,9 @@ UPPER_LIMIT = 0.65
 
 
 class Classifier():
+    def __env_setup(self):
+        """Setting up the environment for the experiment"""
+        nltk.download()
 
     def __init__(self):
         self.__keras_tokenizer = Tokenizer(num_words=35000, filters='', lower=False)
@@ -71,17 +62,22 @@ class Classifier():
         self.__TfidfTransformer = TfidfTransformer(use_idf=True)
         self.__vanilla_classifier = CalibratedClassifierCV(
             LinearSVC(class_weight='balanced', penalty='l2', loss='squared_hinge', dual=True), method='isotonic')
+
         self.__corpus = []
         self.__corpus_labels = []
+
         self.__train_data = []
-        self.__test_data = []
-        self.__train_label = []
-        self.__test_label = []
         self.__dev_data = []
+        self.__test_data = []
+
+        self.__train_label = []
         self.__dev_label = []
+        self.__test_label = []
+
         self.__tokenized_train = []
-        self.__tokenized_test = []
         self.__tokenized_dev = []
+        self.__tokenized_test = []
+
         self.__train_features = None
         self.__dev_features = None
         self.__test_features = None
@@ -93,17 +89,15 @@ class Classifier():
         self.__vanilla_unconfident = None
 
         self.__glove_embedding = None
-        self.__jokes_path = None
-        self.__non_jokes_path = None
-        self.__base_path = None
         self.__glove_path = None
         self.__cnn_history = None
         self.__cnn_results = None
         self.__cnn_predictions = None
         self.__base_path = None
 
-    def __directory_transfer(self, path:str):
-        """Change the directory adress to the desired adress"""
+
+    def __directory_transfer(self, path: str):
+        """Change the directory address to the desired adress"""
         self.__base_path = os.getcwd()
         print(f"The base path is {self.__base_path}")
         os.chdir(self.__base_path+"/"+path)
@@ -258,6 +252,7 @@ class Classifier():
         plt.savefig(self.__base_path + LOSSPLOT)
 
     def run(self, processed_data: bool, vanilla_classifier: bool, custom_features: bool):
+        self.__env_setup()
         self.__directory_transfer("Results")
         print(f"{str(datetime.now())}: Loading the humor and non humor data set to create the corpus ...")
         if processed_data:
@@ -283,7 +278,7 @@ class Classifier():
             self.__vanilla_predict_result = self.__vanilla_classifier.predict(self.__dev_data)
             self.__confusion_matrix_builder(self.__dev_label, self.__vanilla_predict_result,
                                             method_name="Vanila_Claasifier")
-            self.__vanilla_accuracy = metrics.accuracy_score(self.__dev_label, self.__vanilla_predict_result)
+            self.__vanilla_accuracy = accuracy_score(self.__dev_label, self.__vanilla_predict_result)
             print('Test accuracy : ' + str('{:04.2f}'.format(self.__vanilla_accuracy * 100)) + ' %')
             print('Vanilla Classifier Report on Test_set \n',
                   classification_report(self.__vanilla_predict_result, self.__dev_label))
