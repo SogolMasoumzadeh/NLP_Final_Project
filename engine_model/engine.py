@@ -167,12 +167,9 @@ class CNNClassifier():
                     glove_embedding[word_id] = np.array(vector, dtype=np.float32)
         return glove_embedding
 
-    def __build_cnn(self, embedding_matrix):
+    def __build_cnn(self, embedding_matrix, costume_feature_flag: bool, count = NUM_FEATURES):
         """ Build the CNN model """
         sequence_input = Input(shape=(MAXLEN,), dtype='int32', name='Sequence')
-        
-
-        # TODO: try with default keras embedding (should be worse performance)
         embedding_layer = Embedding(len(self.__keras_tokenizer.word_index) + 1,
                               DIMENSION,
                               weights=[embedding_matrix],
@@ -186,18 +183,19 @@ class CNNClassifier():
         x = layers.MaxPooling1D(3, padding='same')(x)
         x = layers.Conv1D(128, 2, activation='relu', padding='same')(x)
         x = layers.GlobalMaxPooling1D()(x)
-        if USE_CUSTOM_FEATURES:
-            features = Input(shape=(NUM_FEATURES,), dtype='float32', name='Features')
+        if costume_feature_flag:
+            features = Input(shape=(count,), dtype='float32', name='Features')
             merged = layers.Concatenate()([x, features])
+            merged = layers.Dropout(0.1)(merged)
+            merged = layers.Dense(20, activation='relu')(merged)
+            merged = layers.Dense(1, activation='sigmoid')(merged)
+            model = Model([sequence_input, features], merged)
+
         else:
             merged = x
-        merged = layers.Dropout(0.1)(merged)
-        merged = layers.Dense(20, activation='relu')(merged)
-        merged = layers.Dense(1, activation='sigmoid')(merged)
-
-        if USE_CUSTOM_FEATURES:
-            model = Model([sequence_input, features], merged)
-        else:
+            merged = layers.Dropout(0.1)(merged)
+            merged = layers.Dense(20, activation='relu')(merged)
+            merged = layers.Dense(1, activation='sigmoid')(merged)
             model = Model(sequence_input, merged)
 
         model.compile(loss='binary_crossentropy',
