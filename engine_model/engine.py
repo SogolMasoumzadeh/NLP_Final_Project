@@ -41,7 +41,7 @@ from sklearn import metrics
 ORIGINAL_DATA = "original_corpus.npy"
 PROCESSED_DATA = "processed_corpus.npy"
 LABELS = "corpus_labels.npy"
-GLOVE_PATH = "glove/glove.6B.100d.txt"
+GLOVE = "glove/glove.6B.100d.txt"
 MAXLEN = 50
 DIMENSION = 100
 TRAIN_EPOCH = 20
@@ -285,66 +285,60 @@ class Classifier():
                                             method_name="Vanila_Claasifier")
             self.__vanilla_accuracy = metrics.accuracy_score(self.__dev_label, self.__vanilla_predict_result)
             print('Test accuracy : ' + str('{:04.2f}'.format(self.__vanilla_accuracy * 100)) + ' %')
-            print('Report on Test_set \n', classification_report(self.__vanilla_predict_result, self.__dev_label))
+            print('Vanilla Classifier Report on Test_set \n',
+                  classification_report(self.__vanilla_predict_result, self.__dev_label))
 
             self.__vanilla_probs = self.__vanilla_classifier.predict_proba(self.__dev_data)
             self.__vanilla_unconfident = [(i, row) for i, row in enumerate(self.__vanilla_probs)
                                           if LOWER_LIMIT < row[0] < UPPER_LIMIT]
 
-
         print(f"In this experiment the used classifier is a deep learning model ...")
-        if custom_features: #TODO Put the function befor the preprocessing
-            print(f"{str(datetime.now())}: Creating feature arrays ...")
-            self.__create_feature_arrays()
-        #
-        # print(f"{str(datetime.now())}: Tokenizing data ...")
-        # self.__keras_tokenize()
-        # self.__padder()
-        #
-        # print(f"{str(datetime.now())}: Creating GloVe embedding ...")
-        # self.__glove_path = self.__file_path_creator(GLOVE_PATH)
-        # glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
-        #                                                   self.__keras_tokenizer.word_index)
-        # np.save('glove_embedding', glove_embedding)
-        # if vanilla_classifier:
-        #     print(f"{str(datetime.now())}: Training the vanilla classifier ...")
-        #     self.__build_vanilla_classifier()
-        #
+        if custom_features:
+            print(f"{str(datetime.now())}: Creating custom feature arrays to be added to the embeddings...")
+            self.__create_feature_wrapper()
+        print(f"{str(datetime.now())}: Tokenizing data using Keras tokenizer ...")
+        self.__keras_tokenize()
+        self.__padder()
 
-        # print(f"{str(datetime.now())}: Building / training CNN model ...")
-        # model = self.__build_cnn(glove_embedding)
-        # print(model.summary())
-        # if custom_features:
-        #     train_in = [self.__tokenized_train, self.__train_features]
-        #     dev_in = [self.__tokenized_dev, self.__dev_features]
-        #     test_in = [np.asarray(self.__tokenized_test), np.asarray(self.__test_features)]
-        # else:
-        #     train_in = self.__tokenized_train
-        #     dev_in = self.__tokenized_dev
-        #     test_in = self.__tokenized_test
-        #
-        # self.__cnn_history = model.fit(train_in,
-        #                                np.asarray(self.__train_label),
-        #                                epochs=TRAIN_EPOCH,
-        #                                validation_data=(dev_in, np.array(self.__dev_label)),
-        #                                batch_size=TRAIN_BATCHSIZE)
-        # self.__convergance_plot_builder(self.__cnn_history)
-        # print(f"{str(datetime.now())}: Predicting the model on the test data ...")
-        # self.__cnn_results = model.evaluate(test_in,
-        #                                     np.asarray(self.__test_label),
-        #                                     batch_size=TEST_BATCHSIZE, verbose=1)
-        # self.__cnn_predictions = model.predict(test_in,
-        #                                        batch_size=TEST_BATCHSIZE, verbose=1)
-        # print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
-        #
-        # self.__cnn_predictions = model.predict(dev_in, batch_size=TEST_BATCHSIZE, verbose=1)
-        # # print(self.__cnn_predictions)
-        # accuracy_score_dev = metrics.accuracy_score(self.__dev_label, self.__cnn_predictions.round())
-        # print('Dev accuracy : ' + str('{:04.2f}'.format(accuracy_score_dev)) + ' %')
-        # print('Report on Dev_set \n', classification_report(self.__cnn_predictions.round(), self.__dev_label))
-        #
-        # model.save('glove_cnn')
-        # print(f"{str(datetime.now())}: Done")
+        print(f"{str(datetime.now())}: Creating GloVe embeddings for creating the CNN model ...")
+        self.__glove_path = self.__base_path+GLOVE
+        glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
+                                                          self.__keras_tokenizer.word_index)
+        np.save('glove_embedding', glove_embedding)
+
+        print(f"{str(datetime.now())}: Building / training CNN model ...")
+        model = self.__build_cnn(glove_embedding)
+        print(f"This is the deep learning model summary {model.summary()}")
+        if custom_features:
+            print(f"Adding the custom features to the tokenized inputs to be passed to the CNN model ...  ")
+            train_in = [self.__tokenized_train, self.__train_features]
+            dev_in = [self.__tokenized_dev, self.__dev_features]
+            test_in = [np.asarray(self.__tokenized_test), np.asarray(self.__test_features)]
+        else:
+            train_in = self.__tokenized_train
+            dev_in = self.__tokenized_dev
+            test_in = self.__tokenized_test
+
+        self.__cnn_history = model.fit(train_in,
+                                       np.asarray(self.__train_label),
+                                       epochs=TRAIN_EPOCH,
+                                       validation_data=(dev_in, np.array(self.__dev_label)),
+                                       batch_size=TRAIN_BATCHSIZE)
+        self.__convergance_plot_builder(self.__cnn_history)
+        print(f"{str(datetime.now())}: Predicting the model on the test data ...")
+        self.__cnn_results = model.evaluate(test_in,
+                                            np.asarray(self.__test_label),
+                                            batch_size=TEST_BATCHSIZE, verbose=1)
+        self.__cnn_predictions = model.predict(test_in,
+                                               batch_size=TEST_BATCHSIZE, verbose=1)
+        print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
+
+        self.__cnn_predictions = model.predict(dev_in, batch_size=TEST_BATCHSIZE, verbose=1)
+        print('Deep Learning Model Report on Test_set \n',
+              classification_report(self.__cnn_predictions.round(), self.__test_label))
+
+        model.save('glove_cnn')
+        print(f"{str(datetime.now())}: Done ...")
 
 
 
