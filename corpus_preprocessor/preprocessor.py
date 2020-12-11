@@ -17,7 +17,7 @@ class TextProcessor():
 
     def __init__(self):
         self.__main_corpus = []
-        self.__main_corpus_labels = []
+        self.__corpus_labels = []
         self.__train_data = []
         self.__dev_data = []
         self.__test_data = []
@@ -56,7 +56,7 @@ class TextProcessor():
         non_joke_list.extend(joke_list)
         non_joke_labels.extend(joke_labels)
         self.__main_corpus = non_joke_list
-        self.__main_corpus_labels = non_joke_labels
+        self.__corpus_labels = non_joke_labels
 
     def __pre_process_text(self, sentence: str):
         """Pre-process a sentec in the corpus. Pre-processing includes:
@@ -107,7 +107,8 @@ class TextProcessor():
         os.chdir(self.base_path+"/"+RESULT)
         np.save("original_corpus", self.__main_corpus)
         print(f" Pre-processing the corpus and lemmatize it ...")
-        processed_corpus = self.__pre_process_wrapper(self.__main_corpus)
-        np.save("processed_corpus", processed_corpus)
+        # processed_corpus = self.__pre_process_wrapper(self.__main_corpus)
+        # np.save("processed_corpus", processed_corpus)
+        np.save("corpus_labels", self.__corpus_labels)
 
 
