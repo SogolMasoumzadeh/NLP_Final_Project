@@ -37,8 +37,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report
 from sklearn import metrics
-JOKES_PATH = "jokes_processed_20201110.csv"
-NO_JOKES_PATH = "no_jokes_amaz_yahoo_20201204.csv"
+ORIGINAL_DATA = "original_corpus.npy"
+PROCESSED_DATA = "processed_corpus.npy"
+LABELS = "corpus_labels.npy"
 GLOVE_PATH = "glove/glove.6B.100d.txt"
 MAXLEN = 50
 DIMENSION = 100
@@ -53,13 +54,15 @@ ACCURACYPLOT = "Acurracy_Plot"
 LOSSPLOT = "Loss_Plot"
 FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
 SECOND_PERSON_WORDS = ['you', 'your', 'yours']
+LOWER_LIMIT = 0.35
+UPPER_LIMIT = 0.65
 #nlp = spacy.load("en_core_web_sm")
 #nlp = spacy.load("en")
 # import spacy
 # nlp = spacy.en_core_web_sm.load()
 
 
-class CNNClassifier():
+class Classifier():
 
     def __init__(self):
         self.__keras_tokenizer = Tokenizer(num_words=35000, filters='', lower=False)
@@ -82,6 +85,12 @@ class CNNClassifier():
         self.__dev_features = None
         self.__test_features = None
 
+        # Vanilla classifier attributes
+        self.__vanilla_predict_result = None
+        self.__vanilla_accuracy = True
+        self.__vanilla_probs = None
+        self.__vanilla_unconfident = None
+
         self.__glove_embedding = None
         self.__jokes_path = None
         self.__non_jokes_path = None
@@ -95,20 +104,22 @@ class CNNClassifier():
     def __directory_transfer(self, path:str):
         """Change the directory adress to the desired adress"""
         self.__base_path = os.getcwd()
+        print(f"The base path is {self.__base_path}")
         os.chdir(self.__base_path+"/"+path)
         print(f"The path has been changed to {os.getcwd()} ...")
 
 
-    def __train_test_divider(self, data: List[str], data_label):
+    def __train_test_divider(self, data, data_label):
         """Splitting the data between train, dev and test
-        as the input it can take the original corpus or the processed corpus"""
+        as the input it can take the original corpus or the processed corpus
+        the original corpus or the processed corpus all are of type numpy.ndarray"""
         self.__train_data, self.__test_data, self.__train_label, self.__test_label = \
             train_test_split(data, data_label, test_size=0.1, random_state=1000)
 
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
             train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
 
-    def __pre_processor(self, input_data: List[str], original_corpus: bool):
+    def __corpus_embedding_creator(self, input_data, original_corpus: bool):
         """create the bag-of-words representation from the input corpus
         In the case of using the train, dev and test set from original corpus,
          the corpus should be vectorized ..."""
@@ -134,7 +145,7 @@ class CNNClassifier():
         self.__tokenized_test = pad_sequences(self.__tokenized_test, padding="post", maxlen=MAXLEN)
 
 
-    def __create_feature_array(self, data: List[str], count = NUM_FEATURES):
+    def __create_feature_array(self, data, count = NUM_FEATURES):
         """Adding hand-crafted features to the corpus"""
         features = np.empty(shape=(len(data), count))
         for i, sentence in enumerate(data):
@@ -236,95 +247,95 @@ class CNNClassifier():
         # plt.show()
         plt.savefig(self.__base_path + LOSSPLOT)
 
-    def run(self, vanilla_classifier: bool, preprocessing: bool, custom_features: bool):
-        print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
-        self.__jokes_path = self.__file_path_creator(JOKES_PATH)
-        self.__non_jokes_path = self.__file_path_creator(NO_JOKES_PATH)
-        self.__base_path = self.__jokes_path[:-len(JOKES_PATH)]
-
-        jokes, jokes_labels = self.__data_loader(self.__jokes_path, True)
-        non_jokes, non_jokes_labels = self.__data_loader(self.__non_jokes_path, False)
-        self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
+    def run(self, processed_data: bool, vanilla_classifier: bool, custom_features: bool):
+        self.__directory_transfer("Results")
+        print(f"{str(datetime.now())}: Loading the humor and non humor data set to create the corpus ...")
+        if processed_data:
+            print(f"For this experiment the pre-processed corpus is being used ... ")
+            self.__corpus = np.load(self.__base_path+"/"+"Results"+PROCESSED_DATA)
+        else:
+            print(f"For this experiment the original corpus without any pre-processing is being used ...")
+            self.__corpus = np.load(self.__base_path+"/"+"Results"+ORIGINAL_DATA)
+        corpus_lables = np.load(self.__base_path+"/"+"Results"+LABELS)
 
         if vanilla_classifier:
-            print(f"{str(datetime.now())}: Create bag of words representation ...")
-            self.__corpus = self.__pre_processor(self.__corpus)
-        print(f"{str(datetime.now())}: Splitting data ...")
-        self.__train_test_divider(self.__corpus, self.__corpus_labels)
-        
-        if preprocessing:
-            print(f"{str(datetime.now())}: Preprocessing sentences (lemmatization at moment)...")
-            self.__preprocess()      
-        
+            print(f"In this experiment the used classifier is a vanilla classifier ...")
+            print(f"{str(datetime.now())}: Create bag of words representation of the corpus...")
+            if processed_data:
+                self.__corpus = self.__corpus_embedding_creator(self.__corpus, original_corpus=False)
+            else:
+                self.__corpus = self.__corpus_embedding_creator(self.__corpus, original_corpus=True)
+
+            print(f"{str(datetime.now()): Dividing the used corpus embeddings to train, dev and test sets ...}")
+            self.__train_test_divider(self.__corpus, corpus_lables)
+            print(f"{str(datetime.now())}: Creating the weighted classifier as the vanilla base classifier...")
+            self.__build_vanilla_classifier()
+            self.__vanilla_predict_result = self.__vanilla_classifier.predict(self.__dev_data)
+            print(confusion_matrix(self.__dev_label, self.__vanilla_predict_result)) #TODO create a function for confusion matrix
+
+            self.__vanilla_accuracy = metrics.accuracy_score(self.__dev_label, self.__vanilla_predict_result)
+            print('Test accuracy : ' + str('{:04.2f}'.format(self.__vanilla_accuracy * 100)) + ' %')
+            print('Report on Test_set \n', classification_report(self.__vanilla_predict_result, self.__dev_label))
+
+            # Probabilities
+            self.__vanilla_probs = self.__vanilla_classifier.predict_proba(self.__dev_data)
+            self.__vanilla_unconfident = [(i, row) for i, row in enumerate(self.__vanilla_probs)
+                                          if LOWER_LIMIT < row[0] < UPPER_LIMIT]
+
+
+        print(f"In this experiment the used classifier is a deep learning model ...")
         if custom_features: #TODO Put the function befor the preprocessing
             print(f"{str(datetime.now())}: Creating feature arrays ...")
             self.__create_feature_arrays()
-        
-        print(f"{str(datetime.now())}: Tokenizing data ...")
-        self.__keras_tokenize()
-        self.__padder()
+        #
+        # print(f"{str(datetime.now())}: Tokenizing data ...")
+        # self.__keras_tokenize()
+        # self.__padder()
+        #
+        # print(f"{str(datetime.now())}: Creating GloVe embedding ...")
+        # self.__glove_path = self.__file_path_creator(GLOVE_PATH)
+        # glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
+        #                                                   self.__keras_tokenizer.word_index)
+        # np.save('glove_embedding', glove_embedding)
+        # if vanilla_classifier:
+        #     print(f"{str(datetime.now())}: Training the vanilla classifier ...")
+        #     self.__build_vanilla_classifier()
+        #
 
-        print(f"{str(datetime.now())}: Creating GloVe embedding ...")
-        self.__glove_path = self.__file_path_creator(GLOVE_PATH)
-        glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
-                                                          self.__keras_tokenizer.word_index)
-        np.save('glove_embedding', glove_embedding)
-        if vanilla_classifier:
-            print(f"{str(datetime.now())}: Training the vanilla classifier ...")
-            self.__build_vanilla_classifier()
-
-            y_predict = self.__vanilla_classifier.predict(self.__dev_data)
-            print(confusion_matrix(self.__dev_label, y_predict))
-
-            accuracy_score_test = metrics.accuracy_score(self.__dev_label, y_predict)
-            print('Test accuracy : ' + str('{:04.2f}'.format(accuracy_score_test * 100)) + ' %')
-            print('Report on Test_set \n', classification_report(y_predict, self.__dev_label))
-
-            # Probabilities
-            y_confidence = self.__vanilla_classifier.predict_proba(self.__dev_data)
-            unconfident_results = []
-            i = 0
-            for row in y_confidence:
-                if 0.35 < row[0] < 0.65:
-                    unconfident_results.append((row, i))
-                i += 1
-            print(y_confidence[:5, :])
-            print(len(unconfident_results))
-
-        print(f"{str(datetime.now())}: Building / training CNN model ...")
-        model = self.__build_cnn(glove_embedding)
-        print(model.summary())
-        if custom_features:
-            train_in = [self.__tokenized_train, self.__train_features]
-            dev_in = [self.__tokenized_dev, self.__dev_features]
-            test_in = [np.asarray(self.__tokenized_test), np.asarray(self.__test_features)]
-        else:
-            train_in = self.__tokenized_train
-            dev_in = self.__tokenized_dev
-            test_in = self.__tokenized_test
-
-        self.__cnn_history = model.fit(train_in,
-                                       np.asarray(self.__train_label),
-                                       epochs=TRAIN_EPOCH,
-                                       validation_data=(dev_in, np.array(self.__dev_label)),
-                                       batch_size=TRAIN_BATCHSIZE)
-        self.__convergance_plot_builder(self.__cnn_history)
-        print(f"{str(datetime.now())}: Predicting the model on the test data ...")
-        self.__cnn_results = model.evaluate(test_in,
-                                            np.asarray(self.__test_label),
-                                            batch_size=TEST_BATCHSIZE, verbose=1)
-        self.__cnn_predictions = model.predict(test_in,
-                                               batch_size=TEST_BATCHSIZE, verbose=1)
-        print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
-
-        self.__cnn_predictions = model.predict(dev_in, batch_size=TEST_BATCHSIZE, verbose=1)
-        # print(self.__cnn_predictions)
-        accuracy_score_dev = metrics.accuracy_score(self.__dev_label, self.__cnn_predictions.round())
-        print('Dev accuracy : ' + str('{:04.2f}'.format(accuracy_score_dev)) + ' %')
-        print('Report on Dev_set \n', classification_report(self.__cnn_predictions.round(), self.__dev_label))
-
-        model.save('glove_cnn')
-        print(f"{str(datetime.now())}: Done")
+        # print(f"{str(datetime.now())}: Building / training CNN model ...")
+        # model = self.__build_cnn(glove_embedding)
+        # print(model.summary())
+        # if custom_features:
+        #     train_in = [self.__tokenized_train, self.__train_features]
+        #     dev_in = [self.__tokenized_dev, self.__dev_features]
+        #     test_in = [np.asarray(self.__tokenized_test), np.asarray(self.__test_features)]
+        # else:
+        #     train_in = self.__tokenized_train
+        #     dev_in = self.__tokenized_dev
+        #     test_in = self.__tokenized_test
+        #
+        # self.__cnn_history = model.fit(train_in,
+        #                                np.asarray(self.__train_label),
+        #                                epochs=TRAIN_EPOCH,
+        #                                validation_data=(dev_in, np.array(self.__dev_label)),
+        #                                batch_size=TRAIN_BATCHSIZE)
+        # self.__convergance_plot_builder(self.__cnn_history)
+        # print(f"{str(datetime.now())}: Predicting the model on the test data ...")
+        # self.__cnn_results = model.evaluate(test_in,
+        #                                     np.asarray(self.__test_label),
+        #                                     batch_size=TEST_BATCHSIZE, verbose=1)
+        # self.__cnn_predictions = model.predict(test_in,
+        #                                        batch_size=TEST_BATCHSIZE, verbose=1)
+        # print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
+        #
+        # self.__cnn_predictions = model.predict(dev_in, batch_size=TEST_BATCHSIZE, verbose=1)
+        # # print(self.__cnn_predictions)
+        # accuracy_score_dev = metrics.accuracy_score(self.__dev_label, self.__cnn_predictions.round())
+        # print('Dev accuracy : ' + str('{:04.2f}'.format(accuracy_score_dev)) + ' %')
+        # print('Report on Dev_set \n', classification_report(self.__cnn_predictions.round(), self.__dev_label))
+        #
+        # model.save('glove_cnn')
+        # print(f"{str(datetime.now())}: Done")
 
 
 
