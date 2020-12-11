@@ -1,7 +1,7 @@
-from .engine import CNNClassifier, LinearClassifier
+from .engine import Classifier
 
 def main():
-    c = CNNClassifier()
-    c.run()
+    classifier = Classifier()
+    classifier.run(processed_data=False, vanilla_classifier=False, custom_features=False)
 
 main()
