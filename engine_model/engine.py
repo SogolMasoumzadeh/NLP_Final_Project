@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import List
 import nltk
 import pandas as pd
+import seaborn
 import os
 #import copy
 pd.set_option('max_colwidth', None)
@@ -218,6 +219,15 @@ class Classifier():
                       optimizer='adam',
                       metrics=['accuracy'])
         return model
+    def __confusion_matrix_builder(self, lebels, predicitions, method_name:str):
+        """Create a confusion matrix based on the ground truth labels and predicitions"""
+        cm = confusion_matrix(lebels, predicitions)
+        plot_cm = pd.DataFrame(cm, index=[i for i in ["Humor", "Non_Humor"]],
+                               columns=[i for i in ["Humor", "Non_Humor"]])
+        plt.figure(figsize=(10, 7))
+        plt.title(f"Confusion Matrix for the method {method_name}")
+        seaborn.heatmap(plot_cm, annot=True)
+        # plt.show()
 
     def __convergance_plot_builder(self, history):
         """Create the convergence plots for th loss and accuracy of the model"""
@@ -271,13 +281,12 @@ class Classifier():
             print(f"{str(datetime.now())}: Creating the weighted classifier as the vanilla base classifier...")
             self.__build_vanilla_classifier()
             self.__vanilla_predict_result = self.__vanilla_classifier.predict(self.__dev_data)
-            print(confusion_matrix(self.__dev_label, self.__vanilla_predict_result)) #TODO create a function for confusion matrix
-
+            self.__confusion_matrix_builder(self.__dev_label, self.__vanilla_predict_result,
+                                            method_name="Vanila_Claasifier")
             self.__vanilla_accuracy = metrics.accuracy_score(self.__dev_label, self.__vanilla_predict_result)
             print('Test accuracy : ' + str('{:04.2f}'.format(self.__vanilla_accuracy * 100)) + ' %')
             print('Report on Test_set \n', classification_report(self.__vanilla_predict_result, self.__dev_label))
 
-            # Probabilities
             self.__vanilla_probs = self.__vanilla_classifier.predict_proba(self.__dev_data)
             self.__vanilla_unconfident = [(i, row) for i, row in enumerate(self.__vanilla_probs)
                                           if LOWER_LIMIT < row[0] < UPPER_LIMIT]
