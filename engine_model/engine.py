@@ -45,7 +45,7 @@ FEATURES = 'features.npy'
 
 MAXLEN = 50
 DIMENSION = 100
-TRAIN_EPOCH = 1  # TODO To put it as 20 for the real training
+TRAIN_EPOCH = 20
 TRAIN_BATCHSIZE = 16
 TEST_BATCHSIZE = 16
 
@@ -86,6 +86,8 @@ class Classifier():
         self.__train_features = None
         self.__dev_features = None
         self.__test_features = None
+
+        self.__features = None
 
         # Vanilla classifier attributes
         self.__vanilla_predict_result = None
