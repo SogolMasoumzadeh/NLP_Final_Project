@@ -22,21 +22,21 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 
-ORIGINAL_DATA = "original_corpus.npy"
+ORIGINAL_DATA = "original_corpus.npz"
 
-LEMMA_SW_PUNCT = "lemma_sw_punct.npy"
-LEMMA_SW="lemma_sw.npy"
-LEMMA_PUNCT="lemma_punct.npy"
-LEMMA="lemma.npy"
+LEMMA_SW_PUNCT = "lemma_sw_punct.npz"
+LEMMA_SW="lemma_sw.npz"
+LEMMA_PUNCT="lemma_punct.npz"
+LEMMA="lemma.npz"
 
-STEM_SW_PUNCT="stemm_sw_punct.npy"
-STEM_SW="stemm_sw.npy"
-STEM_PUNCT="stemm_punct.npy"
-STEM="stemm.npy"
+STEM_SW_PUNCT="stemm_sw_punct.npz"
+STEM_SW="stemm_sw.npz"
+STEM_PUNCT="stemm_punct.npz"
+STEM="stemm.npz"
 
-SW_PUNCT="sw_punct.npy"
-SW="sw.npy"
-PUNCT="punct.npy"
+SW_PUNCT="sw_punct.npz"
+SW="sw.npz"
+PUNCT="punct.npz"
 
 LABELS = "corpus_labels.npy"
 
@@ -323,10 +323,12 @@ class Classifier():
                 else:
 
                     self.__corpus = np.load(self.__base_path + "/" + "Results/" + ORIGINAL_DATA)
+            self.__corpus = self.__corpus[self.__corpus.files[0]]
 
         else:
             print(f"For this experiment the original corpus without any pre-processing is being used ...")
             self.__corpus = np.load(self.__base_path+"/"+"Results/"+ORIGINAL_DATA)
+            self.__corpus = self.__corpus[self.__corpus.files[0]]
         corpus_lables = np.load(self.__base_path+"/"+"Results/"+LABELS)
 
         if vanilla_classifier:
