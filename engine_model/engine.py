@@ -4,7 +4,6 @@ import pandas as pd
 
 pd.set_option('max_colwidth', None)
 import matplotlib.pyplot as plt
-import seaborn
 import os
 import nltk
 from nltk import word_tokenize
@@ -57,17 +56,10 @@ XLABEL = "Epoch"
 ACCURACYPLOT = "Acurracy_Plot"
 LOSSPLOT = "Loss_Plot"
 
-
-# nlp = spacy.load("en_core_web_sm")
-# nlp = spacy.load("en")
-# import spacy
-# nlp = spacy.en_core_web_sm.load()
-
-
 class Classifier():
     def __env_setup(self):
         """Setting up the environment for the experiment"""
-        nltk.download()
+        # nltk.download()
 
     def __init__(self):
         self.__keras_tokenizer = Tokenizer(num_words=35000, filters='', lower=False)
@@ -127,13 +119,12 @@ class Classifier():
 
         # Split out the features and text
         if self.__features is not None:
-            self.__train_features = self.__train_data[:, 1:]
-            self.__dev_features = self.__dev_data[:, 1:]
-            self.__test_features = self.__test_data[:, 1:]
+            self.__train_features, self.__test_features, _, _ = \
+                train_test_split(self.__features, data_label, test_size=0.1, random_state=1000)
 
-        self.train_data = self.__train_data[:, 0]
-        self.dev_data = self.__dev_data[:, 0]
-        self.test_data = self.__test_data[:, 0]
+            self.__train_features, self.__dev_features, _, _ = \
+                train_test_split(self.__train_features, np.zeros(shape=(len(self.__train_features),)),\
+                                 test_size=0.15 / (0.85 + 0.15), random_state=1000)
 
     def __data_formatter(self, data):
         """Chanes the format of the loaded data from nump.ndarray to list"""
@@ -196,7 +187,7 @@ class Classifier():
         x = layers.Conv1D(128, 2, activation='relu', padding='same')(x)
         x = layers.GlobalMaxPooling1D()(x)
         if costume_feature_flag:
-            features = Input(shape=(3,), dtype='float32', name='Features')
+            features = Input(shape=(np.shape(self.__features)[1],), dtype='float32', name='Features')
             merged = layers.Concatenate()([x, features])
             merged = layers.Dropout(0.1)(merged)
             merged = layers.Dense(20, activation='relu')(merged)
@@ -221,7 +212,7 @@ class Classifier():
                                columns=[i for i in ["Humor", "Non_Humor"]])
         plt.figure(figsize=(10, 7))
         plt.title(f"Confusion Matrix for the method {method_name}")
-        seaborn.heatmap(plot_cm, annot=True)
+        # seaborn.heatmap(plot_cm, annot=True)
         # plt.show()
 
     def __convergance_plot_builder(self, history):
@@ -346,7 +337,6 @@ class Classifier():
         if custom_features:
             print(f"{str(datetime.now())}: Creating custom feature arrays to be added to the embeddings...")
             self.__create_feature_wrapper()
-            self.__corpus = np.concatenate(self.__corpus, self.__features, axis=1)
 
         print(f"{str(datetime.now())}: Dividing the used corpus embeddings to train, dev and test sets ...")
         self.__train_test_divider(self.__corpus, corpus_lables)

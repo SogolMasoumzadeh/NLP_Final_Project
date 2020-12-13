@@ -11,8 +11,14 @@ from nltk import pos_tag
 from datetime import datetime
 import numpy as np
 
+# nlp = spacy.load("en_core_web_sm")
+# nlp = spacy.load("en")
+# import spacy
+# nlp = spacy.en_core_web_sm.load()
+
 JOKES = "jokes_processed_20201110.csv"
 NO_JOKES = "no_jokes_amaz_yahoo_20201204.csv"
+HUMOR_PATH = "humor_dataset.csv"
 RESULT = "Results"
 
 FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
@@ -35,6 +41,13 @@ class TextProcessor():
         self.__stemmer = PorterStemmer
         self.__stop_words = set(stopwords.words('english'))
         self.__punctuation = string.punctuation
+
+        # self.__humourous_words = {}
+        # with open(self.__file_path_creator(HUMOR_PATH), encoding="utf-8") as csvfile:
+        #     readCSV = csv.reader(csvfile, delimiter=',')
+        #     next(readCSV, None)
+        #     for row in readCSV:
+        #         self.__humourous_words[row[0]] = float(row[1])
 
     def __file_path_creator(self, file_name: str):
         """Create the path to the jokes and non jokes file and the glove embeddings..."""
@@ -128,11 +141,14 @@ class TextProcessor():
             pos_tags = pos_tag(word_tokenize(sentence))
             proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
             features[i, 2] = len(proper_nouns) / sentence_length
-            #
             #     #NER for people
             #     doc = nlp(sentence)
             #     person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
             #     features[i, 2] = len(person_ents)
+
+            ## Humourous words
+            # humour_rating = [self.__humourous_words.get(w, 0) for w in words]
+            # features[i, 3] = max(humour_rating)
         np.save("features", features)
 
     def run(self):

@@ -1,2 +1,5 @@
 # Ignore data files in results folder
 Results
+
+# Ignore glove embedding files
+glove
