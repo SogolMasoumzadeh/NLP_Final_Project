@@ -1,6 +1,6 @@
+import string
 import os
 import csv
-import string
 from typing import List
 from collections import defaultdict
 from nltk.corpus import wordnet as wn
@@ -14,6 +14,9 @@ import numpy as np
 JOKES = "jokes_processed_20201110.csv"
 NO_JOKES = "no_jokes_amaz_yahoo_20201204.csv"
 RESULT = "Results"
+
+FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
+SECOND_PERSON_WORDS = ['you', 'your', 'yours']
 
 class TextProcessor():
 
@@ -109,6 +112,29 @@ class TextProcessor():
         """Wrapper function for the function __pre_process_text"""
         return [self.__pre_process_text(sentence, *args) for sentence in input_data]
 
+    def __create_feature_array(self, input_data: List[str]):
+        """Adding hand-crafted features to the corpus"""
+        features = np.empty(shape=(len(input_data), 3))
+        for i, sentence in enumerate(input_data):
+            sentence_lower = sentence.lower()
+            words = word_tokenize(sentence_lower)
+            sentence_length = len(words)
+            features[i, 0] = len([w for w in words if w in FIRST_PERSON_WORDS]) / sentence_length
+            features[i, 1] = len([w for w in words if w in SECOND_PERSON_WORDS]) / sentence_length
+            # if count > 2:
+            #     # Third component of the custom feature
+            #     # Proper nouns
+            print(f"Evaluating the proper nouns within the corpus ... ")
+            pos_tags = pos_tag(word_tokenize(sentence))
+            proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
+            features[i, 2] = len(proper_nouns) / sentence_length
+            #
+            #     #NER for people
+            #     doc = nlp(sentence)
+            #     person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
+            #     features[i, 2] = len(person_ents)
+        np.save("features", features)
+
     def run(self):
         print(f"{str(datetime.now())}: Loading the humor and non humor data set ...")
         self.__jokes_path = self.__file_path_creator(JOKES)
@@ -126,11 +152,14 @@ class TextProcessor():
         print(f"Creating the main dataset consisting of humor and non-humor ...")
         self.__corpus_creator(jokes, non_jokes, jokes_labels, non_jokes_labels)
         os.chdir(self.base_path+"/"+RESULT)
-        # np.save("original_corpus", self.__main_corpus)
+        np.save("original_corpus", self.__main_corpus)
 
         print(f" Pre-processing the corpus ...")
-        print(f"first phase without lemmatizing or stemming ....")
-        print(f"Eliminating both stop words and punctuations ...")
+        print(f"Creating the custom features array...")
+        self.__create_feature_array(self.__main_corpus)
+
+        # print(f"first phase without lemmatizing or stemming ....")
+        # print(f"Eliminating both stop words and punctuations ...")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, False, False, True, True)
         # np.save("sw_punct", processed_corpus)
         # print(f"Only eliminating the stop words ...")
@@ -139,21 +168,21 @@ class TextProcessor():
         # print(f"Only eliminating the punctuations ... ")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, False, False, False, True)
         # np.save("punct", processed_corpus)
-
-        print(f"Second phase without only lemmatizing ...")
-        print(f"Eliminating both stop words and punctuations ...")
+        #
+        # print(f"Second phase without only lemmatizing ...")
+        # print(f"Eliminating both stop words and punctuations ...")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, True, False, True, True)
         # np.save("lemma_sw_punct", processed_corpus)
-        print(f"Only eliminating the stop words ...")
+        # print(f"Only eliminating the stop words ...")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, True, False, True, False)
         # np.save("lemma_sw", processed_corpus)
-        print(f"Only eliminating the punctuations ... ")
+        # print(f"Only eliminating the punctuations ... ")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, True, False, False, True)
-        # np.save("lemma_punct", processed_corpus)'
-        print(f"Now only doing the lemmatization ...")
+        # np.save("lemma_punct", processed_corpus)
+        # print(f"Now only doing the lemmatization ...")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, True, False, False, False)
         # np.save("lemma", processed_corpus)
-
+        #
         # print(f"Last phase without stemming ....")
         # print(f"Eliminating both stop words and punctuations ...")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, False, True, True, True)
@@ -164,8 +193,8 @@ class TextProcessor():
         # print(f"Only eliminating the punctuations ... ")
         # processed_corpus = self.__pre_process_wrapper(self.__main_corpus, False, True, False, True)
         # np.save("stemm_punct", processed_corpus)
-
-        print(f"Saving the labels of the corpus")
-        np.save("corpus_labels", self.__corpus_labels)
+        #
+        # print(f"Saving the labels of the corpus")
+        # np.save("corpus_labels", self.__corpus_labels)
 
 

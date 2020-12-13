@@ -1,6 +1,7 @@
 from datetime import datetime
 import numpy as np
 import pandas as pd
+
 pd.set_option('max_colwidth', None)
 import matplotlib.pyplot as plt
 import seaborn
@@ -21,34 +22,31 @@ from tensorflow.python.keras.models import Model
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-
 ORIGINAL_DATA = "original_corpus.npy"
 
 LEMMA_SW_PUNCT = "lemma_sw_punct.npy"
-LEMMA_SW="lemma_sw.npy"
-LEMMA_PUNCT="lemma_punct.npy"
-LEMMA="lemma.npy"
+LEMMA_SW = "lemma_sw.npy"
+LEMMA_PUNCT = "lemma_punct.npy"
+LEMMA = "lemma.npy"
 
-STEM_SW_PUNCT="stemm_sw_punct.npy"
-STEM_SW="stemm_sw.npy"
-STEM_PUNCT="stemm_punct.npy"
-STEM="stemm.npy"
+STEM_SW_PUNCT = "stemm_sw_punct.npy"
+STEM_SW = "stemm_sw.npy"
+STEM_PUNCT = "stemm_punct.npy"
+STEM = "stemm.npy"
 
-SW_PUNCT="sw_punct.npy"
-SW="sw.npy"
-PUNCT="punct.npy"
+SW_PUNCT = "sw_punct.npy"
+SW = "sw.npy"
+PUNCT = "punct.npy"
 
 LABELS = "corpus_labels.npy"
 
 GLOVE = "/glove/glove.6B.100d.txt"
 
-NUM_FEATURES = 2
-FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
-SECOND_PERSON_WORDS = ['you', 'your', 'yours']
+FEATURES = 'features.npy'
 
 MAXLEN = 50
 DIMENSION = 100
-TRAIN_EPOCH = 1 #TODO To put it as 20 for the real training
+TRAIN_EPOCH = 1  # TODO To put it as 20 for the real training
 TRAIN_BATCHSIZE = 16
 TEST_BATCHSIZE = 16
 
@@ -60,8 +58,8 @@ ACCURACYPLOT = "Acurracy_Plot"
 LOSSPLOT = "Loss_Plot"
 
 
-#nlp = spacy.load("en_core_web_sm")
-#nlp = spacy.load("en")
+# nlp = spacy.load("en_core_web_sm")
+# nlp = spacy.load("en")
 # import spacy
 # nlp = spacy.en_core_web_sm.load()
 
@@ -110,14 +108,12 @@ class Classifier():
         self.__cnn_predictions = None
         self.__base_path = None
 
-
     def __directory_transfer(self, path: str):
         """Change the directory address to the desired adress"""
         self.__base_path = os.getcwd()
         print(f"The base path is {self.__base_path}")
-        os.chdir(self.__base_path+"/"+path)
+        os.chdir(self.__base_path + "/" + path)
         print(f"The path has been changed to {os.getcwd()} ...")
-
 
     def __train_test_divider(self, data, data_label):
         """Splitting the data between train, dev and test
@@ -128,6 +124,16 @@ class Classifier():
 
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
             train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
+
+        # Split out the features and text
+        if self.__features is not None:
+            self.__train_features = self.__train_data[:, 1:]
+            self.__dev_features = self.__dev_data[:, 1:]
+            self.__test_features = self.__test_data[:, 1:]
+
+        self.train_data = self.__train_data[:, 0]
+        self.dev_data = self.__dev_data[:, 0]
+        self.test_data = self.__test_data[:, 0]
 
     def __data_formatter(self, data):
         """Chanes the format of the loaded data from nump.ndarray to list"""
@@ -158,34 +164,9 @@ class Classifier():
         self.__tokenized_dev = pad_sequences(self.__tokenized_dev, padding="post", maxlen=MAXLEN)
         self.__tokenized_test = pad_sequences(self.__tokenized_test, padding="post", maxlen=MAXLEN)
 
-
-    def __create_feature_array(self, data, count = NUM_FEATURES):
-        """Adding hand-crafted features to the corpus"""
-        features = np.empty(shape=(len(data), count))
-        for i, sentence in enumerate(data):
-            sentence_lower = sentence.lower()
-            words = word_tokenize(sentence_lower)
-            sentence_length = len(words)
-            features[i, 0] = len([w for w in words if w in FIRST_PERSON_WORDS]) / sentence_length
-            features[i, 1] = len([w for w in words if w in SECOND_PERSON_WORDS]) / sentence_length
-            # if count > 2:
-            #     # Third component of the custom feature
-            #     # Proper nouns
-            #     print(f"Evaluating the proper nouns within the corpus ... ")
-            #     pos_tags = pos_tag(word_tokenize(sentence))
-            #     proper_nouns = [word for word, pos in pos_tags if pos in ['NNP', 'NNPS']]
-            #     features[i, 2] = len(proper_nouns) / sentence_length
-            #
-            #     #NER for people
-            #     doc = nlp(sentence)
-            #     person_ents = [(X.text, X.label_) for X in doc.ents if X.label_ == 'PERSON']
-            #     features[i, 2] = len(person_ents)
-        return features
     def __create_feature_wrapper(self):
-        """Wrapepr function for the function __create_feature_array"""
-        self.__train_features = self.__create_feature_array(self.__train_data)
-        self.__dev_features = self.__create_feature_array(self.__dev_data)
-        self.__test_features = self.__create_feature_array(self.__test_data)
+        """Load the features array"""
+        self.__features = np.load(self.__base_path + "/" + "Results/" + FEATURES)
 
     def __glove_embeddings_creator(self, glove_file_path: str, dimension: int, keras_output):
         """Creating the embeddings for the input data (tokenized) based ont he GloVe method"""
@@ -202,10 +183,10 @@ class Classifier():
         """ Build the CNN model """
         sequence_input = Input(shape=(MAXLEN,), dtype='int32', name='Sequence')
         embedding_layer = Embedding(len(self.__keras_tokenizer.word_index) + 1,
-                              DIMENSION,
-                              weights=[embedding_matrix],
-                              input_length=MAXLEN,
-                              trainable=False)
+                                    DIMENSION,
+                                    weights=[embedding_matrix],
+                                    input_length=MAXLEN,
+                                    trainable=False)
         embedded_sequences = embedding_layer(sequence_input)
         x = layers.Dropout(0.1)(embedded_sequences)
         x = layers.Conv1D(128, 3, activation='relu')(x)
@@ -232,7 +213,8 @@ class Classifier():
                       optimizer='adam',
                       metrics=['accuracy'])
         return model
-    def __confusion_matrix_builder(self, lebels, predicitions, method_name:str):
+
+    def __confusion_matrix_builder(self, lebels, predicitions, method_name: str):
         """Create a confusion matrix based on the ground truth labels and predicitions"""
         cm = confusion_matrix(lebels, predicitions)
         plot_cm = pd.DataFrame(cm, index=[i for i in ["Humor", "Non_Humor"]],
@@ -326,8 +308,8 @@ class Classifier():
 
         else:
             print(f"For this experiment the original corpus without any pre-processing is being used ...")
-            self.__corpus = np.load(self.__base_path+"/"+"Results/"+ORIGINAL_DATA)
-        corpus_lables = np.load(self.__base_path+"/"+"Results/"+LABELS)
+            self.__corpus = np.load(self.__base_path + "/" + "Results/" + ORIGINAL_DATA)
+        corpus_lables = np.load(self.__base_path + "/" + "Results/" + LABELS)
 
         if vanilla_classifier:
             print(f"In this experiment the used classifier is a vanilla classifier"
@@ -361,6 +343,8 @@ class Classifier():
         if custom_features:
             print(f"{str(datetime.now())}: Creating custom feature arrays to be added to the embeddings...")
             self.__create_feature_wrapper()
+            self.__corpus = np.concatenate(self.__corpus, self.__features, axis=1)
+
         print(f"{str(datetime.now())}: Dividing the used corpus embeddings to train, dev and test sets ...")
         self.__train_test_divider(self.__corpus, corpus_lables)
         self.__train_data = self.__data_formatter(self.__train_data)
@@ -371,7 +355,7 @@ class Classifier():
         self.__padder()
 
         print(f"{str(datetime.now())}: Creating GloVe embeddings for creating the CNN model ...")
-        self.__glove_path = self.__base_path+GLOVE
+        self.__glove_path = self.__base_path + GLOVE
         glove_embedding = self.__glove_embeddings_creator(self.__glove_path, DIMENSION,
                                                           self.__keras_tokenizer.word_index)
         np.save('glove_embedding', glove_embedding)
@@ -407,8 +391,3 @@ class Classifier():
               classification_report(self.__cnn_predictions.round(), self.__test_label))
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done ...")
-
-
-
-
-
