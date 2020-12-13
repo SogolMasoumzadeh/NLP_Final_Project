@@ -23,9 +23,24 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 
 ORIGINAL_DATA = "original_corpus.npy"
-PROCESSED_DATA = "processed_corpus.npy"
+
+LEMMA_SW_PUNCT = "lemma_sw_punct.npy"
+LEMMA_SW="lemma_sw.npy"
+LEMMA_PUNCT="lemma_punct.npy"
+LEMMA="lemma.npy"
+
+STEM_SW_PUNCT="stemm_sw_punct.npy"
+STEM_SW="stemm_sw.npy"
+STEM_PUNCT="stemm_punct.npy"
+STEM="stemm.npy"
+
+SW_PUNCT="sw_punct.npy"
+SW="sw.npy"
+PUNCT="punct.npy"
+
 LABELS = "corpus_labels.npy"
-GLOVE = "glove/glove.6B.100d.txt"
+
+GLOVE = "/glove/glove.6B.100d.txt"
 
 NUM_FEATURES = 2
 FIRST_PERSON_WORDS = ['i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours']
@@ -33,8 +48,8 @@ SECOND_PERSON_WORDS = ['you', 'your', 'yours']
 
 MAXLEN = 50
 DIMENSION = 100
-TRAIN_EPOCH = 20
-TRAIN_BATCHSIZE = 256
+TRAIN_EPOCH = 1 #TODO To put it as 20 for the real training
+TRAIN_BATCHSIZE = 16
 TEST_BATCHSIZE = 16
 
 LOWER_LIMIT = 0.35
@@ -114,6 +129,10 @@ class Classifier():
         self.__train_data, self.__dev_data, self.__train_label, self.__dev_label = \
             train_test_split(self.__train_data, self.__train_label, test_size=0.15 / (0.85 + 0.15), random_state=1000)
 
+    def __data_formatter(self, data):
+        """Chanes the format of the loaded data from nump.ndarray to list"""
+        return data.tolist()
+
     def __corpus_embedding_creator(self, input_data, original_corpus: bool):
         """create the bag-of-words representation from the input corpus
         In the case of using the train, dev and test set from original corpus,
@@ -127,7 +146,7 @@ class Classifier():
         self.__vanilla_classifier.fit(self.__train_data, self.__train_label)
 
     def __keras_tokenize(self):
-        """Tokenize the train and test datasets""" #TODO probably the tokenizer should be trained on the test as well
+        """Tokenize the train and test datasets"""
         self.__keras_tokenizer.fit_on_texts(self.__train_data + self.__dev_data)
         self.__tokenized_train = self.__keras_tokenizer.texts_to_sequences(self.__train_data)
         self.__tokenized_dev = self.__keras_tokenizer.texts_to_sequences(self.__dev_data)
@@ -179,7 +198,7 @@ class Classifier():
                     glove_embedding[word_id] = np.array(vector, dtype=np.float32)
         return glove_embedding
 
-    def __build_cnn(self, embedding_matrix, costume_feature_flag: bool, count = NUM_FEATURES):
+    def __build_cnn(self, embedding_matrix, costume_feature_flag: bool, count=NUM_FEATURES):
         """ Build the CNN model """
         sequence_input = Input(shape=(MAXLEN,), dtype='int32', name='Sequence')
         embedding_layer = Embedding(len(self.__keras_tokenizer.word_index) + 1,
@@ -225,7 +244,6 @@ class Classifier():
 
     def __convergance_plot_builder(self, history):
         """Create the convergence plots for th loss and accuracy of the model"""
-        self.__directory_transfer("Results")
         labels = [key for key in history.history.keys()]
         print(f"Creating the accuracy plot for the model's training history")
         plt.figure(figsize=(12, 5))
@@ -257,22 +275,74 @@ class Classifier():
         print(f"{str(datetime.now())}: Loading the humor and non humor data set to create the corpus ...")
         if processed_data:
             print(f"For this experiment the pre-processed corpus is being used ... ")
-            self.__corpus = np.load(self.__base_path+"/"+"Results"+PROCESSED_DATA)
+            lemma = str(input("Do you want lemmatizing? (yes/no)"))
+            stemm = str(input("Do you want stemming? (yes/no)"))
+            sw = str(input("Do you want to eliminate the stop words? (yes/no)"))
+            punct = str(input("Do you want to eliminate the punctuation? (yes/no)"))
+            if lemma.lower() == "yes" and stemm.lower() == "no":
+                if sw.lower() == "yes" and punct.lower() == "yes":
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + LEMMA_SW_PUNCT)
+                elif sw.lower() == "yes" and punct.lower() == "no":
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + LEMMA_SW)
+                elif sw.lower() == "no" and punct.lower() == "yes":
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + LEMMA_PUNCT)
+                else:
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + LEMMA)
+
+            elif lemma.lower() == "no" and stemm.lower() == "yes":
+
+                if sw.lower() == "yes" and punct.lower() == "yes":
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + STEM_SW_PUNCT)
+
+                elif sw.lower() == "yes" and punct.lower() == "no":
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + STEM_SW)
+
+                elif sw.lower() == "no" and punct.lower() == "yes":
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + STEM_PUNCT)
+
+                else:
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + STEM)
+            else:
+                if sw.lower() == "yes" and punct.lower() == "yes":
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + SW_PUNCT)
+
+                elif sw.lower() == "yes" and punct.lower() == "no":
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + SW)
+                    print(f"This is the size of the corpus {len(self.__corpus)}")
+
+                elif sw.lower() == "no" and punct.lower() == "yes":
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + PUNCT)
+
+                else:
+
+                    self.__corpus = np.load(self.__base_path + "/" + "Results/" + ORIGINAL_DATA)
+
         else:
             print(f"For this experiment the original corpus without any pre-processing is being used ...")
-            self.__corpus = np.load(self.__base_path+"/"+"Results"+ORIGINAL_DATA)
-        corpus_lables = np.load(self.__base_path+"/"+"Results"+LABELS)
+            self.__corpus = np.load(self.__base_path+"/"+"Results/"+ORIGINAL_DATA)
+        corpus_lables = np.load(self.__base_path+"/"+"Results/"+LABELS)
 
         if vanilla_classifier:
-            print(f"In this experiment the used classifier is a vanilla classifier ...")
+            print(f"In this experiment the used classifier is a vanilla classifier"
+                  f" to identify hard to distinguish instances ...")
             print(f"{str(datetime.now())}: Create bag of words representation of the corpus...")
             if processed_data:
                 self.__corpus = self.__corpus_embedding_creator(self.__corpus, original_corpus=False)
             else:
                 self.__corpus = self.__corpus_embedding_creator(self.__corpus, original_corpus=True)
 
-            print(f"{str(datetime.now()): Dividing the used corpus embeddings to train, dev and test sets ...}")
+            print(f"{str(datetime.now())}: Dividing the used corpus embeddings to train, dev and test sets ...")
             self.__train_test_divider(self.__corpus, corpus_lables)
+            self.__train_data = self.__data_formatter(self.__train_data)
+            self.__dev_data = self.__data_formatter(self.__dev_data)
+            self.__test_data = self.__data_formatter(self.__test_data)
             print(f"{str(datetime.now())}: Creating the weighted classifier as the vanilla base classifier...")
             self.__build_vanilla_classifier()
             self.__vanilla_predict_result = self.__vanilla_classifier.predict(self.__dev_data)
@@ -291,6 +361,11 @@ class Classifier():
         if custom_features:
             print(f"{str(datetime.now())}: Creating custom feature arrays to be added to the embeddings...")
             self.__create_feature_wrapper()
+        print(f"{str(datetime.now())}: Dividing the used corpus embeddings to train, dev and test sets ...")
+        self.__train_test_divider(self.__corpus, corpus_lables)
+        self.__train_data = self.__data_formatter(self.__train_data)
+        self.__dev_data = self.__data_formatter(self.__dev_data)
+        self.__test_data = self.__data_formatter(self.__test_data)
         print(f"{str(datetime.now())}: Tokenizing data using Keras tokenizer ...")
         self.__keras_tokenize()
         self.__padder()
@@ -302,7 +377,7 @@ class Classifier():
         np.save('glove_embedding', glove_embedding)
 
         print(f"{str(datetime.now())}: Building / training CNN model ...")
-        model = self.__build_cnn(glove_embedding)
+        model = self.__build_cnn(glove_embedding, costume_feature_flag=custom_features)
         print(f"This is the deep learning model summary {model.summary()}")
         if custom_features:
             print(f"Adding the custom features to the tokenized inputs to be passed to the CNN model ...  ")
@@ -328,10 +403,8 @@ class Classifier():
                                                batch_size=TEST_BATCHSIZE, verbose=1)
         print(f"{str(datetime.now())}: The accuracy of the model on the test data set is: {self.__cnn_results}")
 
-        self.__cnn_predictions = model.predict(dev_in, batch_size=TEST_BATCHSIZE, verbose=1)
         print('Deep Learning Model Report on Test_set \n',
               classification_report(self.__cnn_predictions.round(), self.__test_label))
-
         model.save('glove_cnn')
         print(f"{str(datetime.now())}: Done ...")
 
