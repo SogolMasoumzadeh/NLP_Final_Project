@@ -19,16 +19,21 @@ pip install -e .
 
 Running modules:
 
+```bash
+#For running the corpus_preprocessor: Craeting the datasets 
+using the raw data.
+
+pyhton -m pre_processor
+```
+
 
 ```bash
-#For running the main engine without hand-crafted features:
+#For running the main engine: Running the experiments using 
+the appropriate falgs.
 
 pyhton -m engine_model
 ```
-```bash
-#For running the main engine including hand-crafted features:
 
-python -m spacy download en_core_web_sm
 ```
 
 
