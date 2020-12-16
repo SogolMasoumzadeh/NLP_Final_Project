@@ -7,7 +7,7 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 import os
-import attention
+from . import attention
 
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer

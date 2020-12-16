@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="65cdb9e8-189f-4f94-bbb6-dc3b659617f1" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/engine_model/attention.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/engine_model/engine.py" beforeDir="false" afterPath="$PROJECT_DIR$/engine_model/engine.py" afterDir="false" />
-    </list>
+    <list default="true" id="65cdb9e8-189f-4f94-bbb6-dc3b659617f1" name="Default Changelist" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -104,7 +101,7 @@
       <workItem from="1607733554340" duration="952000" />
       <workItem from="1607834232077" duration="92000" />
       <workItem from="1607834326842" duration="6400000" />
-      <workItem from="1608131030682" duration="454000" />
+      <workItem from="1608131030682" duration="825000" />
     </task>
     <servers />
   </component>
