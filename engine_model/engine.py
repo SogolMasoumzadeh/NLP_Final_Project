@@ -1,12 +1,13 @@
+from keras.models import *
+from keras import layers
+
 from datetime import datetime
 import numpy as np
 import pandas as pd
 
-pd.set_option('max_colwidth', None)
 import matplotlib.pyplot as plt
 import os
-import nltk
-from nltk import word_tokenize
+from . import attention
 
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
@@ -20,6 +21,8 @@ from tensorflow.python.keras.layers import Embedding
 from tensorflow.python.keras.models import Model
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+pd.set_option('max_colwidth', None)
 
 ORIGINAL_DATA = "original_corpus.npz"
 
@@ -188,6 +191,12 @@ class Classifier():
         x = layers.MaxPooling1D(3, padding='same')(x)
         x = layers.Conv1D(128, 2, activation='relu', padding='same')(x)
         x = layers.GlobalMaxPooling1D()(x)
+
+        ### TO RUN BI direction LSTM replace CONV1D for the following
+        # x = layers.Bidirectional(layers.LSTM(64, return_sequences=True))(embedded_sequences)
+        # x = layers.Bidirectional(layers.LSTM(32, return_sequences=True))(x)
+        # x = attention.AttentionWithContext()(x)
+
         if costume_feature_flag:
             features = Input(shape=(np.shape(self.__features)[1],), dtype='float32', name='Features')
             merged = layers.Concatenate()([x, features])
