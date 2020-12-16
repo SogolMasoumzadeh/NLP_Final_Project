@@ -1,4 +1,9 @@
 # Final Project- COMP 550- NLP
+###Team Mebers: 
+####Ryan Languay, 
+####Sogol Masoumzadeh, 
+####Miguel l. Salinas. 
+
 ## Development
 |Dependency | Version|
 |------------|-------|
@@ -29,11 +34,9 @@ pyhton -m pre_processor
 
 ```bash
 #For running the main engine: Running the experiments using 
-the appropriate falgs.
+the appropriate flags.
 
 pyhton -m engine_model
-```
 
-```
 
 
